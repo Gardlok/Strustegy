@@ -47,13 +47,26 @@
 // ValidationStrategy is a trait that defines the interface for validation strategies
 // that can be used to validate input in a validation pipeline (see src/validation/strategies/combo.rs)
 // 
-pub trait ValidationStrategy<T: 'static> { // T is the type of input that the strategy will validate
-    fn is_valid(&self, input: &T) -> bool; // Returns true if the input is valid, false otherwise
-    fn as_any(&self) -> &dyn Any;          // Returns a reference to the underlying type as a trait object
-} // The 'static lifetime is used to indicate that the type T will live for the entire duration of the program
-
-
+pub trait ValidationStrategy<T: 'static> {
+    fn is_valid(&self, input: &T) -> bool;
+    fn as_any(&self) -> &dyn Any;
+}
 // 
+impl<T: 'static> PartialEq for dyn ValidationStrategy<T> {
+    fn eq(&self, other: &dyn ValidationStrategy<T>) -> bool {
+        self.as_any().is(other.as_any())
+    }
+}
+//
+impl<T: 'static> Eq for dyn ValidationStrategy<T> {}
+//
+impl<T: 'static> Hash for dyn ValidationStrategy<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_any().hash(state)
+    }
+}
+
+
 
 
 // ValidationStrategy is a trait that defines the interface for validation strategies to be used
