@@ -5,7 +5,8 @@ use std::marker::PhantomData;
 use std::any::Any;
 use std::any::TypeId;
 use std::collections::HashMap;
-use std::dashmap::DashSet as HashSet;
+use dashmap::DashMap as HashSet;
+
 use std::sync::Arc;
 
 use crate::validation::error::ValidationError;

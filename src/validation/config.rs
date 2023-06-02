@@ -60,3 +60,6 @@ impl<T> ValidationConfig<T> {
         self.strategies.iter().all(|strategy| strategy.is_valid(input))
     }
 }
+
+
+
