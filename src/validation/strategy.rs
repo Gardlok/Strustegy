@@ -42,27 +42,100 @@
 
 
 
+use std::any;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::any::Any;
+use std::any::TypeId;
+
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
+
+use dashmap::DashMap as HashMap;
+
+use crate::validation::error::ValidationError;
+use crate::validation::error::AnyValidationError;
+use crate::validation::error::MultipleValidationError;
+
+use crate::validation::Validation;
+
+
+use crate::validator::Validator;
+
+use crate::strategies::*;
+
 
 
 // ValidationStrategy is a trait that defines the interface for validation strategies
 // that can be used to validate input in a validation pipeline (see src/validation/strategies/combo.rs)
 // 
+// pub trait ValidationStrategy<T: 'static> {
+//     fn is_valid(&self, input: &T) -> bool;
+//     fn as_any(&self) -> &dyn Any;
+// }
+// // 
+// impl<T: 'static> PartialEq for dyn ValidationStrategy<T> {
+//     fn eq(&self, other: &dyn ValidationStrategy<T>) -> bool {
+//         self.as_any().is(other.as_any())
+//     }
+// }
+// //
+// impl<T: 'static> Eq for dyn ValidationStrategy<T> {}
+// //
+// impl<T: 'static> Hash for dyn ValidationStrategy<T> {
+//     fn hash<H: Hasher>(&self, state: &mut H) {
+//         self.as_any().hash(state)
+//     }
+// }
+
+// ValidationStrategy is a trait that defines the interface for validation strategies to be used
 pub trait ValidationStrategy<T: 'static> {
     fn is_valid(&self, input: &T) -> bool;
     fn as_any(&self) -> &dyn Any;
 }
-// 
-impl<T: 'static> PartialEq for dyn ValidationStrategy<T> {
-    fn eq(&self, other: &dyn ValidationStrategy<T>) -> bool {
-        self.as_any().is(other.as_any())
-    }
-}
 //
-impl<T: 'static> Eq for dyn ValidationStrategy<T> {}
-//
-impl<T: 'static> Hash for dyn ValidationStrategy<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_any().hash(state)
+// impl<T: 'static> Eq for dyn ValidationStrategy<T> {}
+// //
+// impl<T: 'static> Hash for dyn ValidationStrategy<T> {
+//     fn hash<H: Hasher>(&self, state: &mut H) {
+//         self.as_any().hash(state)  // TODO: This is not correct. We need to hash the actual types of the strategies.
+//                                    // We can do this by using the Any::type_id method.
+//     }
+// }
+
+// Hasher for ValidationStrategy
+////////////////////////////////////////////
+/// 
+
+
+
+// Extra support for ValidationStrategy
+impl<T: 'static> dyn ValidationStrategy<T> {
+    // Creates a new ValidationStrategy from the given function. The function will be used to
+    // validate the input. 
+    pub fn new<F>(f: F) -> impl ValidationStrategy<T>
+    where
+        F: Fn(&T) -> bool + 'static,
+    {
+        struct Strategy<T, F> {
+            f: F,
+            _phantom: PhantomData<T>,
+        }
+        impl<T: 'static, F> ValidationStrategy<T> for Strategy<T, F>
+        where
+            F: Fn(&T) -> bool + 'static,
+        {
+            fn is_valid(&self, input: &T) -> bool {
+                (self.f)(input)
+            }
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+        Strategy {
+            f,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -132,12 +205,32 @@ pub struct NestedValidationStrategy {
     nested_validation: Validation<i32>,
 }
 // NestedValidationStrategy is a validation strategy that can be used to validate input
-// in a validation pipeline (see src/validation/strategies/combo.rs) using a nested validation
-// pipeline (see src/validation/validation.rs)
+// in a validation pipeline  using a nested validation pipeline 
 //
 impl ValidationStrategy<i32> for NestedValidationStrategy {
     fn is_valid(&self, data: &i32) -> bool {
-        self.nested_validation.is_valid(data)
+        
+        // TODO: Implement this method to validate the given input using the nested validation pipeline
+        // Try: self.nested_validation.validate(data) <-- Don't work on this until you have implemented
+        // the Validation struct to be able to compile this code. The Validation struct is defined in
+        // src/validation/validation.rs and looks like this:
+        pub struct Validation<T> {
+            strategies: Vec<Box<dyn ValidationStrategy<T>>>,
+        }
+        impl<T> Validation<T> {
+            pub fn new(strategies: Vec<Box<dyn ValidationStrategy<T>>>) -> Self {
+                Validation {
+                    strategies,
+                }
+            }
+            pub fn validate(&self, data: &T) -> bool {
+                self.strategies.iter().all(|strategy| strategy.is_valid(data))
+            }
+        }
+        self.nested_validation.validate(data)
+        self
+
+
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -209,8 +302,6 @@ where
         self
     }
 }
-
-
 
 
 

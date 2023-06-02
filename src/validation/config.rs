@@ -1,21 +1,42 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::any::Any;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
-pub struct ValidationConfigBuilder {
-    strategies: Vec<Box<dyn ValidationStrategy>>,
+use crate::validation::error::ValidationError;
+use crate::validation::error::AnyValidationError;
+use crate::validation::error::MultipleValidationError;
+
+use crate::validation::Validation;
+
+
+use crate::validator::Validator;
+
+use crate::strategies::*;
+
+
+use crate::ValidationStrategy;
+
+
+pub struct ValidationConfigBuilder<T> {
+    strategies: Vec<Box<dyn ValidationStrategy<T>>>,
 }
 
-impl ValidationConfigBuilder {
+impl<T> ValidationConfigBuilder<T> {
     pub fn new() -> Self {
         ValidationConfigBuilder {
             strategies: Vec::new(),
         }
     }
 
-    pub fn with_strategy(mut self, strategy: Box<dyn ValidationStrategy>) -> Self {
+    pub fn with_strategy(mut self, strategy: Box<dyn ValidationStrategy<T>>) -> Self {
         self.strategies.push(strategy);
         self
     }
 
-    pub fn build(self) -> ValidationConfig {
+    pub fn build(self) -> ValidationConfig<T> {
         ValidationConfig {
             strategies: self.strategies,
         }
@@ -36,6 +57,6 @@ impl<T> ValidationConfig<T> {
     }
 
     pub fn validate(&self, input: &T) -> bool {
-        self.strategies.iter().all(|strategy| strategy.validate(input))
+        self.strategies.iter().all(|strategy| strategy.is_valid(input))
     }
 }
