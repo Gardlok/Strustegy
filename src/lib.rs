@@ -1,4 +1,4 @@
-
+#[macro_use]
 mod validation;
 use validation::*;
 

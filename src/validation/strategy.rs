@@ -58,7 +58,7 @@ use crate::validation::error::ValidationError;
 use crate::validation::error::AnyValidationError;
 use crate::validation::error::MultipleValidationError;
 
-use crate::validation::Validation;
+// use crate::validation::Validation;
 
 
 use crate::validator::Validator;
@@ -72,14 +72,18 @@ use crate::strategies::*;
 
 
 
-/* the trait */
+// A trait that defines the interface for validation strategies to be used by the Validator. The
+// Validator will call the is_valid method on each strategy to determine whether the input is valid
+// or not. This is our kingpin trait that all of the other traits will extend. The StrategyMap will
+// use this trait to store the strategies and define any child or chained strategies that might
+// exist. 
 
 pub trait ValidationStrategy<T: 'static>: Any + Send + Sync {
     fn is_valid(&self, input: &T) -> bool;
     fn as_any(&self) -> &(dyn Any + 'static) where Self: 'static;
     fn eq_with_dyn(&self, other: &(dyn ValidationStrategy<T> + 'static)) -> bool;
     fn hash_with_dyn(&self, hasher: &mut (dyn Hasher + '_));
-    // fn fetch_mesh(&self, base: &mut RenderBase, lod: Lod) -> Result<RenderFaceMeshLink, Error>;
+
 }
 
 impl<T> dyn ValidationStrategy<T> + 'static {
@@ -102,9 +106,6 @@ impl<T> PartialEq<dyn ValidationStrategy<T> + 'static> for dyn ValidationStrateg
 
 impl<T> Eq for dyn ValidationStrategy<T> + 'static {}   
 
-pub struct Lookup<T> {
-    hash_map: HashMap<Box<dyn ValidationStrategy<T> + 'static>, u32>,
-}
 
 
 impl<T: 'static + Send + Sync> dyn ValidationStrategy<T> {
@@ -131,7 +132,7 @@ impl<T: 'static + Send + Sync> dyn ValidationStrategy<T> {
 
             fn eq_with_dyn(&self, other: &(dyn ValidationStrategy<T> + 'static)) -> bool {
                 if let Some(x) = other.downcast_ref::<Strategy<T, F>>() {
-                    self.eq(x)
+                    &self.f as *const _ == &x.f as *const _
                 } else {
                     false
                 }
@@ -141,26 +142,7 @@ impl<T: 'static + Send + Sync> dyn ValidationStrategy<T> {
                 todo!()
             }
         }
-
-        impl<T, F> Iterator for Strategy<T, F> {
-            type Item = Box<dyn ValidationStrategy<T> + 'static>;
-            fn next(&mut self) -> Option<Self::Item> {
-                None
-            }
-        }
-
-
-
-
-        // IntoIterator for Strategy<T, F> 
-        impl<T, F> IntoIterator for Strategy<T, F> {  
-            type Item = Box<dyn ValidationStrategy<T> + 'static>;
-            type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'static>;
-            fn into_iter(self) -> Self::IntoIter {
-                Box::new(self)
-            }
-        }
-        
+     
         impl<T, F> Debug for Strategy<T, F> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_struct("Strategy")
@@ -168,8 +150,6 @@ impl<T: 'static + Send + Sync> dyn ValidationStrategy<T> {
                     .finish()
             }
         }
-
-
 
         Strategy {
             f,
@@ -179,83 +159,90 @@ impl<T: 'static + Send + Sync> dyn ValidationStrategy<T> {
 }
 
 
-
-pub trait IntoStrategyIterator <T>{
-    type Item: ValidationStrategy<T> + 'static;
-    type IntoIter: Iterator<Item = Self::Item> + 'static;
-    fn into_strategy_iter(self) -> Self::IntoIter;
+pub struct StrategyMap<T> {
+    hash_map: HashMap<Box<dyn ValidationStrategy<T> + 'static>, Vec<Box<dyn ValidationStrategy<T> + 'static>>>,
 }
 
-// IntoStrategyIterator
-impl<T: 'static> IntoStrategyIterator<T> for dyn ValidationStrategy<T> + 'static {
-    type Item = Box<dyn ValidationStrategy<T> + 'static>;
-    type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'static>;
-    fn into_strategy_iter(self) -> Self::IntoIter {
-        Box::new(std::iter::once(Box::new(self)))
-    }
-}
-
-impl<T: 'static> IntoStrategyIterator<T> for Box<dyn ValidationStrategy<T> + 'static> {
-    type Item = Box<dyn ValidationStrategy<T> + 'static>;
-    type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'static>;
-    fn into_strategy_iter(self) -> Self::IntoIter {
-        Box::new(std::iter::once(self))
-    }
-}
-
-impl<T: 'static> IntoStrategyIterator<T> for Vec<Box<dyn ValidationStrategy<T> + 'static>> {
-    type Item = Box<dyn ValidationStrategy<T> + 'static>;
-    type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'static>;
-    fn into_strategy_iter(self) -> Self::IntoIter {
-        Box::new(self.into_iter())
-    }
-}
-
-
-
-
-
-
-/* example of how to implement ViewableObjectMesh for your type */
-
-#[derive(PartialEq, Eq, Hash)]
-struct Foo {
-    name: String,
-    data: Vec<u8>,
-}
-
-impl<T: 'static> ValidationStrategy<T> for Foo {
-    fn as_any(&self) -> &(dyn Any + 'static) {
-        self as _
+impl<T: 'static> StrategyMap<T> {
+    pub fn new() -> Self {
+        Self {
+            hash_map: HashMap::new(),
+        }
     }
 
-    fn eq_with_dyn(&self, other: &(dyn ValidationStrategy<T> + 'static)) -> bool {
-        if let Some(x) = other.downcast_ref::<Foo>() {
-            self.eq(x)
+    pub fn insert_strategy(&mut self, strategy: Box<dyn ValidationStrategy<T> + 'static>) {
+        let strategy_type_id = strategy.type_id();
+        let strategy_type = TypeId::of::<dyn ValidationStrategy<T>>();
+        let concrete_type = TypeId::of::<Box<dyn ValidationStrategy<T>>>();
+
+        if strategy_type_id == strategy_type || strategy_type_id == concrete_type {
+            self.hash_map.insert(strategy, Vec::new());
+        }
+    }
+
+    pub fn add_child_strategy(&mut self, parent: &dyn Any, child: Box<dyn ValidationStrategy<T> + 'static>) {
+        let parent_type_id = parent.type_id();
+        let parent_type = TypeId::of::<dyn ValidationStrategy<T>>();
+        let parent_concrete_type = TypeId::of::<Box<dyn ValidationStrategy<T>>>();
+    
+        if parent_type_id == parent_type || parent_type_id == parent_concrete_type {
+            let parent = parent.downcast_ref::<Box<dyn ValidationStrategy<T>>>().unwrap();
+            if let Some(mut children) = self.hash_map.get_mut(parent) {
+                children.push(child);
+            }
+        }
+    }
+
+    
+
+    pub fn remove_strategy(&mut self, strategy: &dyn Any) {
+        let strategy_type_id = strategy.type_id();
+        let strategy_type = TypeId::of::<dyn ValidationStrategy<T>>();
+        let concrete_type = TypeId::of::<Box<dyn ValidationStrategy<T>>>();
+    
+        if strategy_type_id == strategy_type || strategy_type_id == concrete_type {
+            self.hash_map.remove(strategy.downcast_ref::<Box<dyn ValidationStrategy<T>>>().unwrap());
+        }
+    }
+
+    pub fn remove_child_strategy(&mut self, parent: &dyn Any, child: &dyn Any) {
+        let parent_type_id = parent.type_id();
+        let parent_type = TypeId::of::<dyn ValidationStrategy<T>>();
+        let parent_concrete_type = TypeId::of::<Box<dyn ValidationStrategy<T>>>();
+    
+        let child_type_id = child.type_id();
+        let child_type = TypeId::of::<dyn ValidationStrategy<T>>();
+        let child_concrete_type = TypeId::of::<Box<dyn ValidationStrategy<T>>>();
+    
+        if (parent_type_id == parent_type || parent_type_id == parent_concrete_type) && (child_type_id == child_type || child_type_id == child_concrete_type) {
+            if let Some(mut children) = self.hash_map.get_mut(parent.downcast_ref::<Box<dyn ValidationStrategy<T>>>().unwrap()) {
+                let child = child.downcast_ref::<Box<dyn ValidationStrategy<T>>>().unwrap();
+                children.retain(|x| !std::ptr::eq(x.as_ref(), child.as_ref()));
+            }
+        }
+    }
+
+    pub fn contains_key(&self, strategy: &dyn Any) -> bool {
+        let strategy_type_id = strategy.type_id();
+        let strategy_type = TypeId::of::<dyn ValidationStrategy<T>>();
+        let concrete_type = TypeId::of::<Box<dyn ValidationStrategy<T>>>();
+
+        if strategy_type_id == strategy_type || strategy_type_id == concrete_type {
+            self.hash_map.contains_key(strategy.downcast_ref::<Box<dyn ValidationStrategy<T>>>().unwrap())
         } else {
             false
         }
     }
 
-    fn hash_with_dyn(&self, mut hasher: &mut (dyn Hasher + '_)) {
-        // the extra &mut here is because Hash::hash requires the Hasher to be Sized
-        // fortunately there is a blanket `impl Hasher for &mut X where X: Hasher`,
-        // and `&mut (dyn Hasher + '_)` is Sized, so the added mutable borrow lets this work
-        self.hash(&mut hasher)
-    }
+    pub fn get(&self, strategy: &dyn Any) -> Option<&Vec<Box<dyn ValidationStrategy<T> + 'static>>> {
+        let strategy_type_id = strategy.type_id();
+        let strategy_type = TypeId::of::<dyn ValidationStrategy<T>>();
+        let concrete_type = TypeId::of::<Box<dyn ValidationStrategy<T>>>();
 
-    fn is_valid(&self, input: &T) -> bool {
-        todo!()
+        if strategy_type_id == strategy_type || strategy_type_id == concrete_type {
+            self.hash_map.get(strategy.downcast_ref::<Box<dyn ValidationStrategy<T>>>().unwrap())
+        } else {
+            None
+        }
     }
 }
-
-
-
-
-
-
-
-
-
-
-

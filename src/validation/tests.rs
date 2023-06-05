@@ -4,6 +4,54 @@ mod tests {
     use super::*;
 
 
+    // Test for lib.rs
+    #[test]
+    fn test_lib() {
+        // Instantiate the library and check the default strategy
+        let lib = Strustegy::new();
+        assert_eq!(lib.default_strategy(), "Expected Default Strategy");
+    }
+
+    // Test for validator.rs
+    #[test]
+    fn test_validator() {
+        // Instantiate the validator and check its behavior
+        let validator = Validator::new();
+        assert!(validator.validate("Test Input"));
+    }
+
+    // Test for builder.rs
+    #[test]
+    fn test_builder() {
+        // Instantiate the builder and check its behavior
+        let builder = Builder::new();
+        assert_eq!(builder.build(), "Expected Output");
+    }
+
+    // Test for config.rs
+    #[test]
+    fn test_config() {
+        // Instantiate the config and check its behavior
+        let config = Config::new();
+        assert_eq!(config.get_config(), "Expected Config");
+    }
+
+    // Test for error.rs
+    #[test]
+    fn test_error() {
+        // Instantiate the error and check its behavior
+        let error = Error::new();
+        assert_eq!(error.get_message(), "Expected Error Message");
+    }
+
+    // Test for strategy.rs
+    #[test]
+    fn test_strategy() {
+        // Instantiate the strategy and check its behavior
+        let strategy = Strategy::new();
+        assert_eq!(strategy.execute(), "Expected Result");
+    }
+
 
     #[test]
     fn test_length_validation() {
