@@ -29,6 +29,8 @@ use crate::strategies::*;
 // }
 
 // Validator struct
+
+
 pub struct Validator<T> {
     data: T,
     strategies: StrategyMap<T>,
@@ -38,56 +40,36 @@ impl<T: 'static> Validator<T> {
     pub fn new(data: T) -> Self {
         Validator {
             data,
-            strategies: StrategyMap::<T>::new()
+            strategies: StrategyMap::<T>::new(),
         }
     }
 
-    pub fn add_strategy(&mut self, strategy: &dyn ValidationStrategy<T>) {
-        self.strategies.insert_strategy(strategy);  // TODO: This is a problem. We need to be able to insert a Box<dyn ValidationStrategy<T>> into the HashMap, but we can't do that because the HashMap is expecting a Box<dyn ValidationStrategy<T> + 'static>. We need to figure out how to get around this.
+    pub fn add_strategy(&mut self, strategy: Box<dyn ValidationStrategy<T> + 'static>) {
+        self.strategies.insert_strategy(strategy);
     }
 
-
-    pub fn add_strategies(&mut self, strategies: Vec<&dyn ValidationStrategy<T>>) {
+    pub fn add_strategies(&mut self, strategies: Vec<Box<dyn ValidationStrategy<T> + 'static>>) {
         for strategy in strategies {
             self.add_strategy(strategy);
         }
     }
 
-    // pub fn remove_strategy(&mut self, strategy: &dyn Any) -> Result<(), ValidationError> {
     pub fn remove_strategy(&mut self, strategy: &dyn ValidationStrategy<T>) -> Result<(), ValidationError> {
-        let strategy_type_id = strategy.type_id();
-        let strategy_type = TypeId::of::<dyn ValidationStrategy<T>>();
-        let concrete_type = TypeId::of::<Box<dyn ValidationStrategy<T>>>();
-
-        if strategy_type_id == strategy_type || strategy_type_id == concrete_type {
-            self.strategies.retain(|s| !std::ptr::eq(s.as_ref(), strategy));
-            Ok(())
-        } else {
-            Err(ValidationError::new("Strategy type mismatch".to_string()))
-        }
+        let strategy_type_id = strategy.as_any().type_id();
+        self.strategies.remove_strategy(&strategy_type_id);
+        Ok(())
     }
 
-    pub fn validate(&self) -> Result<bool, ValidationError> {
-        for strategy in self.strategies.iter() {
-            *strategy.validate(&self.data)?;
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        for entry in self.strategies.hash_map.iter() {
+            let (_, strategy) = entry.pair();
+            if !strategy.is_valid(&self.data) {
+                return Err(ValidationError::new("Validation failed".to_string()));
+            }
         }
-        Ok(true)
+        Ok(())
     }
 }
-
-
-
-
-
-
-
-
-pub struct StrategyMapIter<'a, T> {
-    iter: dashmap::iter::Iter<'a, Box<dyn ValidationStrategy<T> + 'static>, bool>,
-    phantom: PhantomData<T>,
-}
-
-
 
 // ValidatorFactory module
 
@@ -108,15 +90,6 @@ impl<T: 'static> ValidatorFactory<T> {
         self.validators.last_mut().unwrap()
     }
 
-    // pub fn create_validator_with_default_strategies(&mut self, data: T) -> &mut Validator<T> {
-    //     let mut validator = Validator::new(data);
-    //     validator.add_strategies(vec![
-    //         unimplemented!()
-    //     ]);
-    //     self.validators.push(validator);
-    //     self.validators.last_mut().unwrap()
-    // }
-
     pub fn remove_validator(&mut self, validator: &Validator<T>) {
         self.validators.retain(|v| !std::ptr::eq(v, validator));
     }
@@ -125,9 +98,6 @@ impl<T: 'static> ValidatorFactory<T> {
         validator.remove_strategy(strategy)
     }
 }
-
-
-
 
 
 

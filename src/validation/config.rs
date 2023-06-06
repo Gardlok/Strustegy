@@ -47,7 +47,7 @@ pub struct ValidationConfig<T> {
     strategies: Vec<Box<dyn ValidationStrategy<T>>>,
 }
 
-impl<T> ValidationConfig<T> {
+impl<T: 'static> ValidationConfig<T> {
     pub fn new() -> Self {
         Self { strategies: Vec::new() }
     }
@@ -57,9 +57,13 @@ impl<T> ValidationConfig<T> {
     }
 
     pub fn validate(&self, input: &T) -> bool {
-        self.strategies.iter().all(|strategy| strategy.is_valid(input))
+        for strategy in &self.strategies {
+            if !strategy.is_valid(input) {
+                return false;
+            }
+        }
+        true
     }
 }
-
 
 
