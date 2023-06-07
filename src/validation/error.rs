@@ -1,39 +1,58 @@
 
 
-use std::any::Any;
-
-
-
-// validation/error.rs
-
-// This file contains definitions for various types of validation errors. These errors are used
-// to provide detailed information about why a validation failed.
-
+use std::any::{TypeId, Any};
 use std::fmt;
 
-// A general validation error that can represent any kind of validation failure.
-#[derive(Debug)]
-pub struct ValidationError {
-    message: String,
+pub enum ValidationError {
+    StrategyError {
+        strategy_type_id: TypeId,
+        message: String,
+    },
+    MultipleErrors(Vec<ValidationError>),
+    Other(String),
 }
 
 impl ValidationError {
     pub fn new(message: String) -> Self {
-        ValidationError { message }
+        ValidationError::Other(message)
+    }
+
+    pub fn strategy_error(strategy_type_id: TypeId, message: String) -> Self {
+        ValidationError::StrategyError {
+            strategy_type_id,
+            message,
+        }
+    }
+
+    pub fn multiple_errors(errors: Vec<ValidationError>) -> Self {
+        ValidationError::MultipleErrors(errors)
+    }
+
+    pub fn get_message(&self) -> String {
+        match self {
+            ValidationError::StrategyError { strategy_type_id, message } => {
+                format!("Strategy error: {} ({:?})", message, strategy_type_id)
+            }
+            ValidationError::MultipleErrors(errors) => {
+                let mut message = String::from("Multiple errors:");
+                for error in errors {
+                    message.push_str(&format!("\n\t{}", error.get_message()));
+                }
+                message
+            }
+            ValidationError::Other(message) => message.clone(),
+        }
     }
 }
 
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Validation error: {}", self.message)
+        write!(f, "Validation error: {}", self.get_message())
     }
 }
 
-impl std::error::Error for ValidationError {}
+// impl std::error::Error for ValidationError {}
 
-// For extensive error handling, we can use the Any trait to store any type of error in the
-// ValidationError. This allows us to store errors from other crates, such as serde_json, and
-// return them to the user.
 pub struct AnyValidationError {
     message: String,
     error: Box<dyn Any>,
@@ -52,23 +71,19 @@ impl AnyValidationError {
     }
 }
 
-// We can also store multiple errors in a single ValidationError. This is useful for when we want
-// to validate a single input against multiple strategies and return all of the errors to the user.
 pub struct MultipleValidationError {
-    message: String,
     errors: Vec<Box<dyn Any>>,
 }
 
 impl MultipleValidationError {
-    pub fn new(message: String, errors: Vec<Box<dyn Any>>) -> Self {
-        MultipleValidationError { message, errors }
+    pub fn new(errors: Vec<Box<dyn Any>>) -> Self {
+        MultipleValidationError { errors }
     }
 
-    pub fn get_errors(&self) -> &Vec<Box<dyn Any>> {
+    pub fn get_errors(&self) -> &[Box<dyn Any>] {
         &self.errors
     }
 }
-
 
 
 

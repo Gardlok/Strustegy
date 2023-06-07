@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 dashmap = "5.4.0"
+quote = "1.0.28"
+syn = "2.0.18"

@@ -5,6 +5,7 @@ use crate::validation::error::MultipleValidationError;
 
 use crate::Validation;
 use crate::ValidationStrategy;
+use crate::StrategyMap;
 use crate::config::ValidationConfig;
 use crate::config::ValidationConfigBuilder;
 
@@ -36,7 +37,7 @@ impl<T: 'static> ValidationBuilder<T> {
 
     pub fn build(self) -> Validation<T> {
         Validation {
-            strategies: self.strategies,
+            strategies: StrategyMap::new(),
             children: Vec::new(),
         }
     }

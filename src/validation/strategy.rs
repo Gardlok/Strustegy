@@ -63,12 +63,6 @@ use crate::validation::error::MultipleValidationError;
 
 use crate::validator::Validator;
 
-use crate::strategies::*;
-
-
-
-
-
 
 
 
@@ -78,7 +72,23 @@ use crate::strategies::*;
 // use this trait to store the strategies and define any child or chained strategies that might
 // exist. 
 
+pub struct Strategy<T, F: ?Sized> {
+    f: Box<F>,
+    _phantom: PhantomData<T>,
+}
 
+impl<T: 'static + Sync + Send, F> ValidationStrategy<T> for Strategy<T, F>
+where
+F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync,
+{
+    fn is_valid(&self, input: &T) -> bool {
+        (self.f)(input)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
 
 pub trait ValidationStrategy<T: 'static>: Any + Send + Sync {
     fn is_valid(&self, input: &T) -> bool;
@@ -88,123 +98,20 @@ pub trait ValidationStrategy<T: 'static>: Any + Send + Sync {
 impl<T: 'static + Send + Sync> dyn ValidationStrategy<T> {
     pub fn new<F>(f: F) -> Box<dyn ValidationStrategy<T>>
     where
-        F: Fn(&T) -> bool + 'static + Send + Sync,
+        F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync,
     {
-        struct Strategy<T, F> {
-            f: F,
-            _phantom: PhantomData<T>,
-        }
-
-        impl<T: 'static + Sync + Send, F> ValidationStrategy<T> for Strategy<T, F>
-        where
-            F: Fn(&T) -> bool + 'static + Send + Sync,
-        {
-            fn is_valid(&self, input: &T) -> bool {
-                (self.f)(input)
-            }
-
-
-            fn as_any(&self) -> &dyn Any {
-                self
-            }
-        }
-
         Box::new(Strategy {
-            f,
+            f: Box::new(f),
             _phantom: PhantomData,
         })
     }
-
-    pub fn new_arc<F>(f: F) -> Arc<dyn ValidationStrategy<T>>
-    where
-        F: Fn(&T) -> bool + 'static + Send + Sync,
-    {
-        struct Strategy<T, F> {
-            f: F,
-            _phantom: PhantomData<T>,
-        }
-
-        impl<T: 'static + Sync + Send, F> ValidationStrategy<T> for Strategy<T, F>
-        where
-            F: Fn(&T) -> bool + 'static + Send + Sync,
-        {
-            fn is_valid(&self, input: &T) -> bool {
-                (self.f)(input)
-            }
-
-
-            fn as_any(&self) -> &dyn Any {
-                self
-            }
-        }
-
-        Arc::new(Strategy {
-            f,
-            _phantom: PhantomData,
-        })
-    }
-
-    pub fn new_box<F>(f: F) -> Box<dyn ValidationStrategy<T>>
-    where
-        F: Fn(&T) -> bool + 'static + Send + Sync,
-    {
-        struct Strategy<T, F> {
-            f: F,
-            _phantom: PhantomData<T>,
-        }
-
-        impl<T: 'static + Sync + Send, F> ValidationStrategy<T> for Strategy<T, F>
-        where
-            F: Fn(&T) -> bool + 'static + Send + Sync,
-        {
-            fn is_valid(&self, input: &T) -> bool {
-                (self.f)(input)
-            }
-
-            fn as_any(&self) -> &dyn Any {
-                self
-            }
-        }
-
-        Box::new(Strategy {
-            f,
-            _phantom: PhantomData,
-        })
-    }
-
-    pub fn new_box_arc<F>(f: F) -> Arc<dyn ValidationStrategy<T>>
-    where
-        F: Fn(&T) -> bool + 'static + Send + Sync,
-    {
-        struct Strategy<T, F> {
-            f: F,
-            _phantom: PhantomData<T>,
-        }
-
-        impl<T: 'static + Sync + Send, F> ValidationStrategy<T> for Strategy<T, F>
-        where
-            F: Fn(&T) -> bool + 'static + Send + Sync,
-        {
-            fn is_valid(&self, input: &T) -> bool {
-                (self.f)(input)
-            }
-
-            fn as_any(&self) -> &dyn Any {
-                self
-            }
-        }
-
-        Arc::new(Strategy {
-            f,
-            _phantom: PhantomData,
-        })
-    }
-
 
 }
 
+
 pub struct StrategyMap<T> {
     pub hash_map: HashMap<TypeId, Box<dyn ValidationStrategy<T> + 'static>>,
+    
 }
 
 impl<T: 'static> StrategyMap<T> {
