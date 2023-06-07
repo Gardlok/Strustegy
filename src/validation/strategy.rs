@@ -47,45 +47,45 @@ use std::any::Any;
 use std::any::TypeId;
 
 use dashmap::DashMap as HashMap;
+use crossbeam::queue::ArrayQueue as Context;
 
 
 
-use crate::validator::{Validator, Validity};
-
-
-// A trait that defines the interface for validation strategies to be used by the Validator. The
-// Validator will call the is_valid method on each strategy to determine whether the input is valid
-// or not. This is our kingpin trait that all of the other traits will extend. The StrategyMap will
-// use this trait to store the strategies and define any child or chained strategies that might
-// exist. 
+use crate::{Validator, Validity, Validation, ValidatorContext};
 
 pub struct Strategy<T, F: ?Sized> {
     f: Box<F>,
     _phantom: PhantomData<T>,
 }
 
-impl<T: 'static + Sync + Send, F> ValidationStrategy<T> for Strategy<T, F>
+impl<T: 'static + Sync + Send + Clone, F> ValidationStrategy<T> for Strategy<T, F>
 where
-F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync,
+F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync + Clone,
 {
     fn is_valid(&self, input: &T) -> bool {
         (self.f)(input)
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
+
+    fn clone_box(&self) -> Box<dyn ValidationStrategy<T>> {
+        Box::new(self.clone())
+    }
+
+}
+
+pub trait ValidationStrategy<T: 'static>: Any + Send + Sync where T: 'static + Send + Sync + Clone {
+    fn is_valid(&self, input: &T) -> bool;
+    // fn as_any(&'static self) -> &(dyn Any + Send + Sync);
+    fn update_context(&self, context: &mut ValidatorContext, value: &T) -> Result<(), ()> {Ok(())}
+    fn clone_box(&self) -> Box<dyn ValidationStrategy<T>> where Self: 'static + Send + Sync + Clone {
+        Box::new(self.clone())
     }
 }
 
-pub trait ValidationStrategy<T: 'static>: Any + Send + Sync {
-    fn is_valid(&self, input: &T) -> bool;
-    fn as_any(&self) -> &dyn Any;
-}
-
-impl<T: 'static + Send + Sync> dyn ValidationStrategy<T> {
+impl<T: 'static + Send + Sync + Clone > dyn ValidationStrategy<T> + Send + Sync  {
     pub fn new<F>(f: F) -> Box<dyn ValidationStrategy<T>>
     where
-        F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync,
+        F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync + Clone,
     {
         Box::new(Strategy {
             f: Box::new(f),
@@ -95,21 +95,43 @@ impl<T: 'static + Send + Sync> dyn ValidationStrategy<T> {
 
 }
 
+impl<T: 'static + Send + Sync, F> Clone for Strategy<T, F>
+where
+    F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync + Clone,
+{
+    fn clone(&self) -> Self {
+        Strategy {
+            f: self.f.clone(),
+            _phantom: PhantomData,
+        }
+    }
+}
 
-pub struct StrategyMap<T> {
+pub struct StrategyContext<C> {
+    pub type_id: TypeId,
+    pub priority: u32,
+    pub disabled: bool,
+    pub current: Validity<&'static dyn Any>,  // TODO: This should be a reference to the current value
+    pub context: Context<C>,
+}
+
+
+
+
+pub struct StrategyMap<T> where T: 'static + Send + Sync + Clone{
     pub hash_map: HashMap<TypeId, Box<dyn ValidationStrategy<T> + 'static>>,
     
 }
 
-impl<T: 'static> StrategyMap<T> {
+impl<T: 'static + Send + Sync + Clone> StrategyMap<T> where T: 'static + Send + Sync + Clone {
     pub fn new() -> Self {
         Self {
             hash_map: HashMap::new(),
         }
     }
 
-    pub fn insert_strategy(&mut self, strategy: Box<dyn ValidationStrategy<T> + 'static>) {
-        let strategy_type_id = strategy.as_any().type_id();
+    pub fn insert_strategy(&mut self, strategy: Box<dyn ValidationStrategy<T> + 'static>) where Self: 'static + Send + Sync + Clone {
+        let strategy_type_id = strategy.type_id();
         self.hash_map.insert(strategy_type_id, strategy);
     }
 
@@ -129,25 +151,74 @@ impl<T: 'static> StrategyMap<T> {
 
 
 
-    pub fn validate<'a>(&'a self, input: &'a T) -> Validity<&T> {
+    pub fn validate<'a>(&'a self, input: &'a T) -> Validity<T> {
         let mut is_valid = true;
         let mut not_valid = vec![];
-        let input_clone = input.clone();
-        for entry in self.hash_map.iter_mut() {
-            let (type_id, strategy) = (entry.key().clone(), entry.value().clone());
-    
+        // let input_clone = input.clone();
+
+        for entry in self.hash_map.iter() {
+            let (type_id, strategy) = (entry.key().clone(), entry.value());
+        
             let this_is_valid = strategy.is_valid(input);
             if !this_is_valid {
                 not_valid.push(type_id);
             };
             
             is_valid = is_valid && this_is_valid;
-        }    
+        }   
         
         if not_valid.len() > 0 {
-            Validity::Invalid((input_clone, not_valid))
+            Validity::Invalid((input.clone(), not_valid))
         } else {
-            Validity::Valid(input_clone)
+            Validity::Valid(input.clone())
         }
     }
+
+    
+
 }
+
+
+impl<T: 'static + Send + Sync> Clone for StrategyMap<T> where T: 'static + Send + Sync + Clone {
+    fn clone(&self) -> Self {
+        let mut hash_map = HashMap::new();
+        for entry in self.hash_map.iter() {
+            let (key, value) = entry.pair();
+            hash_map.insert(*key, value.clone());
+        }
+        StrategyMap::<T>{ hash_map }
+    }
+}
+
+impl<T: 'static + Send + Sync + Clone> Default for StrategyMap<T> where T: 'static + Send + Sync + Clone {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: 'static + Send + Sync> Clone for Box<dyn ValidationStrategy<T> + 'static> where T: 'static + Send + Sync + Clone {
+    fn clone(&self) -> Self where Self: 'static + Send + Sync + Clone{
+        self.clone()
+    }
+}
+
+impl<T: 'static + Send + Sync> Into <Box<dyn ValidationStrategy<T> + 'static>> for Strategy<T, fn(&T) -> bool> where T: 'static + Send + Sync + Clone {
+    fn into(self) -> Box<dyn ValidationStrategy<T> + 'static> {
+        Box::new(self)
+    }
+}
+
+// impl<T: 'static + Send + Sync> From <Box<dyn ValidationStrategy<T> + 'static>> for Strategy<T, fn(&T) -> bool> where T: 'static + Send + Sync + Clone {
+//     fn from(strategy: Box<dyn ValidationStrategy<T> + 'static>) -> Self {
+//         let strategy_type_id = strategy.type_id();
+//         let strategy_fn = |input: &T| {
+//             strategy.as_any().downcast_ref::<Strategy<T, fn(&T) -> bool>>().unwrap()
+           
+//         };
+//         Strategy::<T, fn(&T) -> bool> 
+//         {
+//             f: Box::new(strategy_fn),
+//             _phantom: PhantomData,
+//         }
+//     }
+// }

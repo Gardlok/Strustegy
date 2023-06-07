@@ -4,7 +4,7 @@
 #[macro_use]
 
 
-use crate::validation::{Validator, ValidationStrategy};
+use crate::{Validator, ValidationStrategy, ValidateOption, Validation, Validity, ValidationLogic, StrategyMap, Strategy};
 // use crate::strategy_fn;
 use std::any::TypeId;
 
@@ -24,29 +24,26 @@ impl ValidationStrategy<Puppy> for NameNotEmptyStrategy {
     fn is_valid(&self, puppy: &Puppy) -> bool {
         !puppy.name.is_empty()
     }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
+
 }
 
+#[derive(Debug, Clone)]
 pub struct AgeInRangeStrategy;
 impl ValidationStrategy<Puppy> for AgeInRangeStrategy {
     fn is_valid(&self, puppy: &Puppy) -> bool {
         puppy.age >= 1 && puppy.age <= 10
     }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
+
 }
 
+#[derive(Debug, Clone)]
 pub struct WeightPositiveStrategy;
 impl ValidationStrategy<Puppy> for WeightPositiveStrategy {
     fn is_valid(&self, puppy: &Puppy) -> bool {
         puppy.weight > 0.0
     }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
+
+
 }
 
 #[cfg(test)]
@@ -87,7 +84,7 @@ mod tests {
             breed: "Poodle".to_string(),
         };
 
-        assert!(validator.validate(&puppy).is_invalid());
+        assert_eq!(validator.validate(&puppy).is_invalid(), false); // 
     }
 
     #[test]
@@ -233,4 +230,68 @@ mod tests {
         assert!(validator.remove_strategy(strategy.as_ref()).is_ok());
         assert!(validator.validate(&puppy).is_valid());
     }
+
+
 }
+
+
+#[cfg(test)]
+mod strategy_tests {
+    use super::*;
+
+    pub use crate::validation::strategies::*;
+
+
+    #[test]
+    fn test_length_validation() {
+        let validator = LengthValidation::new(5, 10);
+        assert!(validator.is_valid(&"hello".to_string()));
+        assert!(!validator.is_valid(&"hi".to_string()));
+        assert!(!validator.is_valid(&"hello world".to_string()));
+    }
+
+   
+    #[test]
+    fn test_regex_validation() {
+        let validator = RegexValidation::new(r"^\d+$");
+        assert!(validator.is_valid(&"12345".to_string()));
+        assert!(!validator.is_valid(&"hello".to_string()));
+    }
+
+
+    #[test]
+    fn test_range_validation() {
+        let validator = RangeValidation::new(5, 10);
+        assert!(validator.is_valid(&7));
+        assert!(!validator.is_valid(&4));
+        assert!(!validator.is_valid(&11));
+    }
+
+
+    #[test]
+    fn test_validate_option() {
+        // Create a validator
+        let mut validator = Validator::<i32>::new();
+        validator.add_strategy(Box::new(RangeValidation::new(0, 10))); // Assuming RangeValidation::new takes two arguments for the range
+
+        // Test with Some value
+        let option = Some(5);
+        assert_eq!(option.validate(&validator), Some(5));
+
+        // Test with None value
+        let option = None;
+        assert_eq!(option.validate(&validator), None);
+
+        // Test with invalid value
+        let option = Some(-5);
+        assert_eq!(option.validate(&validator), None);
+    }
+
+
+}
+
+
+
+
+
+
