@@ -42,28 +42,15 @@
 
 
 
-use std::any;
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::any::Any;
 use std::any::TypeId;
 
-use std::hash::{Hash, Hasher};
-use std::os::unix::prelude::FileTypeExt;
-use std::sync::Arc;
-
 use dashmap::DashMap as HashMap;
 
-use crate::validation::error::ValidationError;
-use crate::validation::error::AnyValidationError;
-use crate::validation::error::MultipleValidationError;
-
-// use crate::validation::Validation;
 
 
-use crate::validator::Validator;
-
-
+use crate::validator::{Validator, Validity};
 
 
 // A trait that defines the interface for validation strategies to be used by the Validator. The
@@ -126,9 +113,8 @@ impl<T: 'static> StrategyMap<T> {
         self.hash_map.insert(strategy_type_id, strategy);
     }
 
-    pub fn remove_strategy(&mut self, strategy: &dyn Any) {
-        let strategy_type_id = strategy.type_id();
-        self.hash_map.remove(&strategy_type_id);
+    pub fn remove_strategy(&mut self, strategy: TypeId) {
+        self.hash_map.remove(&strategy);
     }
 
     pub fn contains_key(&self, strategy: &dyn Any) -> bool {
@@ -141,16 +127,27 @@ impl<T: 'static> StrategyMap<T> {
         Some(strategy_type_id)
     }
 
-    pub fn validate(&self, input: &T) -> bool {
+
+
+    pub fn validate<'a>(&'a self, input: &'a T) -> Validity<&T> {
         let mut is_valid = true;
+        let mut not_valid = vec![];
+        let input_clone = input.clone();
+        for entry in self.hash_map.iter_mut() {
+            let (type_id, strategy) = (entry.key().clone(), entry.value().clone());
     
-        for entry in self.hash_map.iter() {
-            let (_, strategy) = entry.pair();
-            is_valid = is_valid && strategy.is_valid(input);
+            let this_is_valid = strategy.is_valid(input);
+            if !this_is_valid {
+                not_valid.push(type_id);
+            };
+            
+            is_valid = is_valid && this_is_valid;
+        }    
+        
+        if not_valid.len() > 0 {
+            Validity::Invalid((input_clone, not_valid))
+        } else {
+            Validity::Valid(input_clone)
         }
-    
-        is_valid
     }
-
-
 }

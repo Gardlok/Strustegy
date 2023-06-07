@@ -3,6 +3,7 @@
 use std::any::{TypeId, Any};
 use std::fmt;
 
+#[derive(Debug)]
 pub enum ValidationError {
     StrategyError {
         strategy_type_id: TypeId,
@@ -50,40 +51,5 @@ impl fmt::Display for ValidationError {
         write!(f, "Validation error: {}", self.get_message())
     }
 }
-
-// impl std::error::Error for ValidationError {}
-
-pub struct AnyValidationError {
-    message: String,
-    error: Box<dyn Any>,
-}
-
-impl AnyValidationError {
-    pub fn new<T: Any>(message: String, error: T) -> Self {
-        AnyValidationError {
-            message,
-            error: Box::new(error),
-        }
-    }
-
-    pub fn get_error<T: Any>(&self) -> Option<&T> {
-        self.error.downcast_ref::<T>()
-    }
-}
-
-pub struct MultipleValidationError {
-    errors: Vec<Box<dyn Any>>,
-}
-
-impl MultipleValidationError {
-    pub fn new(errors: Vec<Box<dyn Any>>) -> Self {
-        MultipleValidationError { errors }
-    }
-
-    pub fn get_errors(&self) -> &[Box<dyn Any>] {
-        &self.errors
-    }
-}
-
 
 
