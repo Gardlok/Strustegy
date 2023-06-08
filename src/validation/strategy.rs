@@ -1,57 +1,12 @@
 
 
- // In order to be able to support multiple types, we'll need to define specific validation
-// strategies for each type. The types of strategies we'll need are:
-//
-// - ValidationStrategy: A trait that defines the interface for validation strategies to be used by
-//   the Validator. The Validator will call the is_valid method on each strategy to determine whether
-//   the input is valid or not. This is our kingpin trait that all of the other traits will extend.
-// - StaticValidationStrategy: A strategy that can be used to validate a single input. This is
-//   useful for strategies that don't need to store state between validations.
-// - DynamicValidationStrategy: A strategy that can be used to validate a single input. This is
-//   useful for strategies that need to store state between validations.
-// - ComboValidationStrategy: A strategy that combines multiple static and dynamic strategies to
-//   be used when validating a single input. The static strategies are executed first, followed by
-//   the dynamic strategies. If any of the static strategies fail, the input is considered invalid
-//   and the dynamic strategies are not executed. If any of the dynamic strategies fail, the input
-//   is considered invalid. If all of the static and dynamic strategies pass, the input is considered
-//   valid.
-// - WithContextStrategy: A trait that defines the interface for validation strategies that need to
-//   store state between validations. The Validator will call the is_valid_with_context method on
-//   each strategy to determine whether the input is valid or not. This trait extends the 
-//   ValidationStrategy trait. 
-// - TimeValidationStrategy: A strategy that can be used to validate a single input. This is useful
-//   for strategies that need to validate a time. It is equipt with a time provider that can be
-//   used to get the current time. This includes date and time. 
-// - RegexValidationStrategy: A strategy that can be used to validate a single input. This is useful
-//   for strategies that need to validate a string against a regular expression. 
-// - LogicalValidationStrategy: A strategy that can be used to validate a single input. Useful for
-//   strategies that need to validate a boolean value. Combined with the ComboValidationStrategy,
-//   this can be used to create complex validation logic. 
-// - IterValidationStrategy: A strategy that can be used to validate an iterator of inputs. Useful
-//   for strategies that need to validate a list of inputs. Combined with the ComboValidationStrategy,
-//   this can be used to create complex validation logic. 
-// - MapValidationStrategy: A strategy that can be used to validate a single input. Useful for
-//   strategies that need to validate a map of inputs. Great for complex validation logic.
-// - IntoIterValidationStrategy: A strategy that takes one strategy and converts it into an iterator
-//   over the input. Useful for strategies that need to validate a list of inputs. Combined with Rayon
-//   and the IterValidationStrategy, this can be used to create complex validation logic that can be
-//   executed in parallel. 
-
-
-
-
-
 use std::marker::PhantomData;
 use std::any::Any;
 use std::any::TypeId;
-
 use dashmap::DashMap as HashMap;
-use crossbeam::queue::ArrayQueue as Context;
 
-
-
-use crate::{Validator, Validity, Validation, ValidatorContext};
+use crate::validation::{Validator, Context};
+use crate::Validity;
 
 pub struct Strategy<T, F: ?Sized> {
     f: Box<F>,
@@ -76,7 +31,7 @@ F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync + Clone,
 pub trait ValidationStrategy<T: 'static>: Any + Send + Sync where T: 'static + Send + Sync + Clone {
     fn is_valid(&self, input: &T) -> bool;
     // fn as_any(&'static self) -> &(dyn Any + Send + Sync);
-    fn update_context(&self, context: &mut ValidatorContext, value: &T) -> Result<(), ()> {Ok(())}
+    fn update_context(&self, context: &mut Context<StrategyContext>, value: &T) -> Result<(), ()> {Ok(())}
     fn clone_box(&self) -> Box<dyn ValidationStrategy<T>> where Self: 'static + Send + Sync + Clone {
         Box::new(self.clone())
     }
@@ -107,15 +62,40 @@ where
     }
 }
 
-pub struct StrategyContext<C> {
+
+pub struct StrategyContext {
     pub type_id: TypeId,
     pub priority: u32,
     pub disabled: bool,
     pub current: Validity<&'static dyn Any>,  // TODO: This should be a reference to the current value
-    pub context: Context<C>,
 }
 
 
+
+
+impl Default for StrategyContext {
+    fn default() -> Self {
+        Self {
+            type_id: TypeId::of::<()>(),
+            priority: 0,
+            disabled: false,
+            current: Validity::NotChecked,
+        }
+    }
+}
+
+
+
+impl Clone for StrategyContext {
+    fn clone(&self) -> Self {
+        Self {
+            type_id: self.type_id,
+            priority: self.priority,
+            disabled: self.disabled,
+            current: self.current.clone(),
+        }
+    }
+}
 
 
 pub struct StrategyMap<T> where T: 'static + Send + Sync + Clone{
@@ -207,18 +187,3 @@ impl<T: 'static + Send + Sync> Into <Box<dyn ValidationStrategy<T> + 'static>> f
         Box::new(self)
     }
 }
-
-// impl<T: 'static + Send + Sync> From <Box<dyn ValidationStrategy<T> + 'static>> for Strategy<T, fn(&T) -> bool> where T: 'static + Send + Sync + Clone {
-//     fn from(strategy: Box<dyn ValidationStrategy<T> + 'static>) -> Self {
-//         let strategy_type_id = strategy.type_id();
-//         let strategy_fn = |input: &T| {
-//             strategy.as_any().downcast_ref::<Strategy<T, fn(&T) -> bool>>().unwrap()
-           
-//         };
-//         Strategy::<T, fn(&T) -> bool> 
-//         {
-//             f: Box::new(strategy_fn),
-//             _phantom: PhantomData,
-//         }
-//     }
-// }

@@ -1,23 +1,22 @@
 
 use crate::validation::error::ValidationError;
-use crate::{StrategyMap, Validation, Validity, ValidationStrategy};
+use crate::validation::{StrategyMap, ValidationStrategy, StrategyContext, Context};
+use crate::Validity;
 
 
-use crossbeam::queue::ArrayQueue as Context;
 
-use super::StrategyContext;
 
 
 pub struct Validator<T> where T: 'static + Send + Sync + Clone {
     strategies: StrategyMap<T>,
-    // context: ValidatorContext,
+    context: Context<StrategyContext>,
 }
 
 impl<T: 'static> Validator<T> where T: 'static + Send + Sync + Clone{
     pub fn new() -> Self {
         Validator {
             strategies: StrategyMap::<T>::new(),
-            // context: ValidatorContext { context: todo!() },
+            context: Context::<StrategyContext>::new(1), 
         }
     }
 
@@ -49,9 +48,8 @@ impl<T: 'static> Validator<T> where T: 'static + Send + Sync + Clone{
 impl<T: 'static> Clone for Validator<T> where T: 'static + Send + Sync + Clone {
     fn clone(&self) -> Self {
         let strategies = self.strategies.clone();
-        Validator { strategies }
+        let context: Context<StrategyContext> = Context::<StrategyContext>::new(self.context.len());
+        
+        Validator { strategies, context }
     }
-}
-pub struct ValidatorContext {
-    context: Context<StrategyContext<()>>,
 }
