@@ -1,7 +1,9 @@
 
 
-use std::any::{TypeId, Any};
+
+use std::any::{Any, TypeId};
 use std::fmt;
+
 
 #[derive(Debug)]
 pub enum ValidationError {
@@ -51,5 +53,3 @@ impl fmt::Display for ValidationError {
         write!(f, "Validation error: {}", self.get_message())
     }
 }
-
-

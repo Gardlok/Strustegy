@@ -1,192 +1,205 @@
 
 
+use std::error::Error;
 use std::marker::PhantomData;
 use std::any::Any;
 use std::any::TypeId;
+use crossbeam::thread::Scope;
 use dashmap::DashMap as HashMap;
+use dashmap::DashSet as HashSet;
+use crossbeam::atomic::AtomicCell; 
+use crossbeam_skiplist::SkipMap as TreeMap;
 
-use crate::validation::{Validator, Context};
-use crate::Validity;
-
-pub struct Strategy<T, F: ?Sized> {
-    f: Box<F>,
-    _phantom: PhantomData<T>,
-}
-
-impl<T: 'static + Sync + Send + Clone, F> ValidationStrategy<T> for Strategy<T, F>
-where
-F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync + Clone,
-{
-    fn is_valid(&self, input: &T) -> bool {
-        (self.f)(input)
-    }
+use crate::validation::error::ValidationError;
 
 
-    fn clone_box(&self) -> Box<dyn ValidationStrategy<T>> {
-        Box::new(self.clone())
-    }
 
-}
+use crate::validation::validator::*;
 
-pub trait ValidationStrategy<T: 'static>: Any + Send + Sync where T: 'static + Send + Sync + Clone {
-    fn is_valid(&self, input: &T) -> bool;
-    // fn as_any(&'static self) -> &(dyn Any + Send + Sync);
-    fn update_context(&self, context: &mut Context<StrategyContext>, value: &T) -> Result<(), ()> {Ok(())}
-    fn clone_box(&self) -> Box<dyn ValidationStrategy<T>> where Self: 'static + Send + Sync + Clone {
-        Box::new(self.clone())
-    }
-}
 
-impl<T: 'static + Send + Sync + Clone > dyn ValidationStrategy<T> + Send + Sync  {
-    pub fn new<F>(f: F) -> Box<dyn ValidationStrategy<T>>
-    where
-        F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync + Clone,
-    {
-        Box::new(Strategy {
-            f: Box::new(f),
-            _phantom: PhantomData,
-        })
-    }
 
-}
+pub trait Strategy {
+    type Target;
+    type Error;
 
-impl<T: 'static + Send + Sync, F> Clone for Strategy<T, F>
-where
-    F: for<'a> Fn(&'a T) -> bool + 'static + Send + Sync + Clone,
-{
-    fn clone(&self) -> Self {
-        Strategy {
-            f: self.f.clone(),
-            _phantom: PhantomData,
-        }
-    }
+    fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error>;
 }
 
 
-pub struct StrategyContext {
+
+
+pub struct StrategyContext<'a, T: 'static + Sync + Send + Clone, F> {
+    pub strategy: &'a dyn Strategy<Target = T, Error = ValidationError>,
     pub type_id: TypeId,
     pub priority: u32,
-    pub disabled: bool,
-    pub current: Validity<&'static dyn Any>,  // TODO: This should be a reference to the current value
+    pub omitted: bool,
+    pub _phantom: PhantomData<&'a F>,
 }
 
 
 
 
-impl Default for StrategyContext {
-    fn default() -> Self {
-        Self {
-            type_id: TypeId::of::<()>(),
-            priority: 0,
-            disabled: false,
-            current: Validity::NotChecked,
-        }
+pub struct ScopeStrategy<F, S>
+where
+    F: FnMut(&mut dyn Any) -> bool,
+    S: Strategy<Target = dyn Any, Error = std::convert::Infallible>,
+{
+    pub proof: F,
+    pub strategy: S,
+}
+
+
+
+impl<F, S> Validator for ScopeStrategy<F, S>
+where
+    F: FnMut(&mut dyn Any) -> bool,
+    S: Strategy<Target = dyn Any, Error = std::convert::Infallible>,
+{
+    type Proof<'a> = ScopedProof<'a, F, S> where F: 'a, S: 'a;
+    type Error = std::convert::Infallible;
+
+    fn validate<'a>(&'a mut self, f: &mut dyn FnMut(&mut Self::Proof<'a>) -> bool) -> bool {
+        let mut proof = ScopedProof { strategy: self };
+        f(&mut proof)
     }
 }
 
 
 
-impl Clone for StrategyContext {
-    fn clone(&self) -> Self {
-        Self {
-            type_id: self.type_id,
-            priority: self.priority,
-            disabled: self.disabled,
-            current: self.current.clone(),
-        }
+
+pub trait Proof {
+    fn validate(&mut self, f: &mut dyn FnMut(&mut dyn Any) -> bool) -> bool;
+}
+
+
+
+// pub struct ScopedProof<'r>(&'r mut ScopeStrategy);
+
+// impl Proof for ScopedProof<'_> {
+//     fn validate(&self, f: &mut dyn FnMut(&mut dyn Any) -> bool) -> bool {
+//         f(self.0)
+//     }
+// }
+
+pub struct ScopedProof<'a, F, S>
+where
+    F: FnMut(&mut dyn Any) -> bool,
+    S: Strategy<Target = dyn Any, Error = std::convert::Infallible>,
+{
+    strategy: &'a mut ScopeStrategy<F, S>,
+}
+
+
+impl<'a, F, S> Proof for ScopedProof<'a, F, S>
+where
+    F: FnMut(&mut dyn Any) -> bool + 'static,
+    S: Strategy<Target = dyn Any, Error = std::convert::Infallible> + 'static,
+{
+    fn validate(&mut self, f: &mut dyn FnMut(&mut dyn Any) -> bool) -> bool {
+        f(self.strategy)
     }
 }
 
 
 
+// Custom validation strategy //
 
+pub struct CustomValidationStrategy<T: 'static, F: Fn(&T) -> bool + 'static>(
+    F,
+    PhantomData<T>,
+);
 
-pub struct StrategyMap<T> where T: 'static + Send + Sync + Clone{
-    pub hash_map: HashMap<TypeId, Box<dyn ValidationStrategy<T> + 'static>>,
-    
+impl<T: 'static, F: Fn(&T) -> bool + 'static> CustomValidationStrategy<T, F> {
+    pub fn new(strategy: F) -> Self {
+        CustomValidationStrategy(strategy, PhantomData)
+    }
 }
 
-impl<T: 'static + Send + Sync + Clone> StrategyMap<T> where T: 'static + Send + Sync + Clone {
-    pub fn new() -> Self {
-        Self {
-            hash_map: HashMap::new(),
-        }
+
+
+pub trait ValidationConfig<T: 'static> {
+    fn is_valid(&self, input: &T) -> bool;
+    fn as_any(&self) -> &dyn Any;
+}
+impl<T: 'static, F: Fn(&T) -> bool + 'static> ValidationConfig<T> for CustomValidationStrategy<T, F> {
+    fn is_valid(&self, input: &T) -> bool {
+        (self.0)(input)
     }
 
-    pub fn insert_strategy(&mut self, strategy: Box<dyn ValidationStrategy<T> + 'static>) where Self: 'static + Send + Sync + Clone {
-        let strategy_type_id = strategy.type_id();
-        self.hash_map.insert(strategy_type_id, strategy);
+    fn as_any(&self) -> &dyn Any {
+        self
     }
+}
 
-    pub fn remove_strategy(&mut self, strategy: TypeId) {
-        self.hash_map.remove(&strategy);
-    }
+impl<T: 'static, F: Fn(&T) -> bool + 'static> Strategy for CustomValidationStrategy<T, F> {
+    type Target = T;
+    type Error = ValidationError;
 
-    pub fn contains_key(&self, strategy: &dyn Any) -> bool {
-        let strategy_type_id = strategy.type_id();
-        self.hash_map.contains_key(&strategy_type_id)
-    }
-
-    pub fn get_strategy_type_id(&self, strategy: &dyn Any) -> Option<TypeId> {
-        let strategy_type_id = strategy.type_id();
-        Some(strategy_type_id)
-    }
-
-
-
-    pub fn validate<'a>(&'a self, input: &'a T) -> Validity<T> {
-        let mut is_valid = true;
-        let mut not_valid = vec![];
-        // let input_clone = input.clone();
-
-        for entry in self.hash_map.iter() {
-            let (type_id, strategy) = (entry.key().clone(), entry.value());
-        
-            let this_is_valid = strategy.is_valid(input);
-            if !this_is_valid {
-                not_valid.push(type_id);
-            };
-            
-            is_valid = is_valid && this_is_valid;
-        }   
-        
-        if not_valid.len() > 0 {
-            Validity::Invalid((input.clone(), not_valid))
+    fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error> {
+        if self.is_valid(target) {
+            Ok(())
         } else {
-            Validity::Valid(input.clone())
+            Err(ValidationError::strategy_error(
+                TypeId::of::<Self>(),
+                "Validation failed".to_string(),
+            ))
+        }
+    }
+}
+pub struct GeneralValidationStrategy<T: 'static> {
+    strategies: HashMap<TypeId, Box<dyn Strategy<Target = T, Error = ValidationError>>>,
+    priority_map: TreeMap<u32, TypeId>,
+    omitted_strategies: HashSet<TypeId>,
+}
+
+impl<T: 'static> GeneralValidationStrategy<T> {
+    pub fn new() -> Self {
+        GeneralValidationStrategy {
+            strategies: HashMap::new(),
+            priority_map: TreeMap::new(),
+            omitted_strategies: HashSet::new(),
         }
     }
 
-    
-
-}
-
-
-impl<T: 'static + Send + Sync> Clone for StrategyMap<T> where T: 'static + Send + Sync + Clone {
-    fn clone(&self) -> Self {
-        let mut hash_map = HashMap::new();
-        for entry in self.hash_map.iter() {
-            let (key, value) = entry.pair();
-            hash_map.insert(*key, value.clone());
+    pub fn add_strategy<S: 'static + Strategy<Target = T, Error = ValidationError>>(
+        &mut self,
+        strategy: S,
+        priority: u32,
+        omitted: bool,
+    ) {
+        let type_id = TypeId::of::<S>();
+        self.strategies.insert(
+            type_id,
+            Box::new(strategy),
+        );
+        self.priority_map.insert(priority, type_id);
+        if omitted {
+            self.omitted_strategies.insert(type_id);
         }
-        StrategyMap::<T>{ hash_map }
     }
 }
 
-impl<T: 'static + Send + Sync + Clone> Default for StrategyMap<T> where T: 'static + Send + Sync + Clone {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+impl<T: 'static> Strategy for GeneralValidationStrategy<T> {
+    type Target = T;
+    type Error = ValidationError;
 
-impl<T: 'static + Send + Sync> Clone for Box<dyn ValidationStrategy<T> + 'static> where T: 'static + Send + Sync + Clone {
-    fn clone(&self) -> Self where Self: 'static + Send + Sync + Clone{
-        self.clone()
-    }
-}
+    fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error> {
+        let mut errors = Vec::new();
+        for entry in self.priority_map.iter() {
+            let type_id = entry.value();
+            if !self.omitted_strategies.contains(type_id) {
+                if let Some(mut strategy) = self.strategies.get_mut(type_id) {
+                    if let Err(error) = strategy.apply(target) {
+                        errors.push(error);
+                    }
+                }
+            }
+        }
 
-impl<T: 'static + Send + Sync> Into <Box<dyn ValidationStrategy<T> + 'static>> for Strategy<T, fn(&T) -> bool> where T: 'static + Send + Sync + Clone {
-    fn into(self) -> Box<dyn ValidationStrategy<T> + 'static> {
-        Box::new(self)
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ValidationError::multiple_errors(errors))
+        }
     }
 }

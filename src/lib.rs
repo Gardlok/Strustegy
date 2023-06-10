@@ -1,23 +1,11 @@
-
-use std::any::{TypeId, Any};
+mod benches;
 
 mod validation;
 
-use validation::{ValidationError, Validator, ValidationStrategy, StrategyMap, Strategy, Context, Validity,  StrategyContext};
-
-
-
+mod tests;
 #[cfg(test)]
-use validation::tests;
+use tests::*;
 
-use std::marker::PhantomData;
-use dashmap::DashMap as HashMap;
-use crossbeam::queue::SegQueue;
+use std::fmt::{Debug, Display};
 
 
-
-// pub trait Validation<T> {
-//     fn validate(&self, input: &T) -> Validity<T>;
-//     fn add_validator(&mut self, validator: Box<dyn ValidationStrategy<T>>);
-//     fn remove_validator(&mut self, validator: TypeId) -> Result<(), ValidationError>;
-// }

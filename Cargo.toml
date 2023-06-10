@@ -6,8 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+criterion = "*"
 crossbeam = "0.8.2"
+crossbeam-skiplist = "0.1.1"
 dashmap = "5.4.0"
 quote = "1.0.28"
+rand = "0.8.5"
 regex = "1.8.4"
 syn = "2.0.18"
+
+
+[dev-dependencies]
+criterion = "*"
+rayon = "1.5.1"
