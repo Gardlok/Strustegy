@@ -82,8 +82,8 @@ where
     F: FnMut(&mut dyn Any) -> bool + 'static,
     S: Strategy<Target = dyn Any, Error = std::convert::Infallible> + 'static,
 {
-    fn validate(&mut self, f: &mut dyn FnMut(&mut dyn Any) -> bool) -> bool {
-        f(self.strategy)
+    fn validate(&mut self, f: &mut dyn for<'b> FnMut(&'b mut ScopedProof<'a, F, S>) -> bool) -> bool {
+        f(self)
     }
 }
 
@@ -191,3 +191,4 @@ impl<T: 'static> Strategy for GeneralValidationStrategy<T> {
         }
     }
 }
+
