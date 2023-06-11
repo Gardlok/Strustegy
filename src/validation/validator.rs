@@ -21,13 +21,4 @@ pub trait Validator {
 
 
 
-// pub trait Validator<'a, T> {
-//     fn validate(&self, target: &'a T) -> Result<(), &'static str>;
-// }
-
-pub trait ValidationStrategy<'a, T> {
-    type Validation: Validator;
-    fn get_validator(&self) -> &Self::Validation;
-}
-
 

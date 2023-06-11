@@ -4,7 +4,6 @@ use std::error::Error;
 use std::marker::PhantomData;
 use std::any::Any;
 use std::any::TypeId;
-use crossbeam::thread::Scope;
 use dashmap::DashMap as HashMap;
 use dashmap::DashSet as HashSet;
 use crossbeam::atomic::AtomicCell; 
@@ -27,8 +26,6 @@ pub trait Strategy {
 }
 
 
-
-
 pub struct StrategyContext<'a, T: 'static + Sync + Send + Clone, F> {
     pub strategy: &'a dyn Strategy<Target = T, Error = ValidationError>,
     pub type_id: TypeId,
@@ -38,6 +35,12 @@ pub struct StrategyContext<'a, T: 'static + Sync + Send + Clone, F> {
 }
 
 
+pub trait Validator {
+    type Proof<'a>: 'a where Self: 'a;
+    type Error;
+
+    fn validate<'a>(&'a mut self, f: &mut dyn FnMut(&mut Self::Proof<'a>) -> bool) -> bool;
+}
 
 
 pub struct ScopeStrategy<F, S>
@@ -48,8 +51,6 @@ where
     pub proof: F,
     pub strategy: S,
 }
-
-
 
 impl<F, S> Validator for ScopeStrategy<F, S>
 where
@@ -66,17 +67,6 @@ where
     }
 }
 
-
-
-
-
-// pub struct ScopedProof<'r>(&'r mut ScopeStrategy);
-
-// impl Proof for ScopedProof<'_> {
-//     fn validate(&self, f: &mut dyn FnMut(&mut dyn Any) -> bool) -> bool {
-//         f(self.0)
-//     }
-// }
 
 pub struct ScopedProof<'a, F, S>
 where
@@ -112,8 +102,6 @@ impl<T: 'static, F: Fn(&T) -> bool + 'static> CustomValidationStrategy<T, F> {
     }
 }
 
-
-
 pub trait ValidationConfig<T: 'static> {
     fn is_valid(&self, input: &T) -> bool;
     fn as_any(&self) -> &dyn Any;
@@ -143,6 +131,9 @@ impl<T: 'static, F: Fn(&T) -> bool + 'static> Strategy for CustomValidationStrat
         }
     }
 }
+
+
+// General validation strategy //
 pub struct GeneralValidationStrategy<T: 'static> {
     pub strategies: HashMap<TypeId, Box<dyn Strategy<Target = T, Error = ValidationError>>>,
     pub priority_map: TreeMap<u32, TypeId>,
