@@ -17,13 +17,22 @@ use crate::validation::validator::*;
 use crate::validation::target::*;
 use crate::validation::proof::*;
 
+use crate::validation::validity::Validity;
+use crate::validation::proof::Proof;
+use crate::validation::logic::Scope;
 
-pub trait Strategy {
-    type Target;
-    type Error;
-
-    fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error>;
+pub trait Strategy<T> {
+    fn apply(&self, target: &T) -> bool;
 }
+
+
+
+// pub trait Strategy {
+//     type Target;
+//     type Error;
+
+//     fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error>;
+// }
 
 
 

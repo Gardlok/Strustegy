@@ -7,6 +7,20 @@ use crossbeam::atomic::AtomicCell;
 use crossbeam_skiplist::SkipMap as TreeMap;
 
 use std::any::TypeId;
+use std::any::Any;
+
+use crate::validation::error::ValidationError;
+use crate::validation::validity::Validity;
+use crate::validation::target::Target;
+use crate::validation::proof::Proof;
+
+
+
+
+pub trait Scope<'a, T> {
+    type Proof: Proof<'a, T>;
+    fn validate(&'a self, proof: &Self::Proof, target: &T) -> bool;
+}
 
 
 //////////////////////////////////////////////////////
