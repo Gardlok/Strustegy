@@ -12,7 +12,8 @@ use std::any::Any;
 use crate::validation::error::ValidationError;
 use crate::validation::validity::Validity;
 use crate::validation::target::Target;
-use crate::validation::proof::Proof;
+use crate::validation::proof::{Proof, GenericProof};
+use crate::validation::validator::{Validator, HigherOrderValidator, GenericValidator};
 
 
 
@@ -22,11 +23,21 @@ pub trait Scope<'a, T> {
     fn validate(&'a self, proof: &Self::Proof, target: &T) -> bool;
 }
 
+pub struct GenericScope<'a, T, P: Proof<'a, T>> {
+    proof: P,
+    _phantom: std::marker::PhantomData<&'a T>,
+}
 
-//////////////////////////////////////////////////////
-// Contextualizing the ecosystem for Strategy patterns
-//
-//
+pub struct HigherOrderScope<'a, T, S: Scope<'a, T>> {
+    pub scopes: Vec<S>,
+    _phantom: std::marker::PhantomData<&'a T>,
+}
+
+
+
+
+
+
 
 
 
