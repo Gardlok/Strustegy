@@ -15,7 +15,8 @@ use crate::validation::error::ValidationError;
 
 
 use crate::validation::validator::*;
-
+use crate::validation::target::*;
+use crate::validation::proof::*;
 
 
 pub trait Strategy {
@@ -52,6 +53,7 @@ where
 
 impl<F, S> Validator for ScopeStrategy<F, S>
 where
+
     F: FnMut(&mut dyn Any) -> bool,
     S: Strategy<Target = dyn Any, Error = std::convert::Infallible>,
 {
@@ -65,11 +67,6 @@ where
 }
 
 
-
-
-pub trait Proof {
-    fn validate(&mut self, f: &mut dyn FnMut(&mut dyn Any) -> bool) -> bool;
-}
 
 
 
@@ -147,9 +144,9 @@ impl<T: 'static, F: Fn(&T) -> bool + 'static> Strategy for CustomValidationStrat
     }
 }
 pub struct GeneralValidationStrategy<T: 'static> {
-    strategies: HashMap<TypeId, Box<dyn Strategy<Target = T, Error = ValidationError>>>,
-    priority_map: TreeMap<u32, TypeId>,
-    omitted_strategies: HashSet<TypeId>,
+    pub strategies: HashMap<TypeId, Box<dyn Strategy<Target = T, Error = ValidationError>>>,
+    pub priority_map: TreeMap<u32, TypeId>,
+    pub omitted_strategies: HashSet<TypeId>,
 }
 
 impl<T: 'static> GeneralValidationStrategy<T> {

@@ -29,3 +29,58 @@ pub struct TargetContext<T: 'static + Sync + Send + Clone> {
 
 
 
+pub trait Color {
+    fn name(&self) -> &'static str;
+}
+
+pub trait Paintable {
+    type Color: Color;
+}
+
+pub trait ConditionalPaintable {
+    type Color: Color;
+    type Condition: Fn() -> bool;
+}
+
+
+
+//
+pub struct Red {
+    counter: u32,
+}
+impl Color for Red {
+    fn name(&self) -> &'static str {
+        "Red"
+    }
+}
+impl Red {
+    pub fn new() -> Self {
+        Red { counter: 0 }
+    }
+    pub fn increment(&mut self) {
+        self.counter += 1;
+    }
+    pub fn count(&self) -> u32 {
+        self.counter
+    }
+}
+
+
+//
+pub struct Green {
+    action: Box<dyn Fn()>,
+}
+impl Color for Green {
+    fn name(&self) -> &'static str {
+        "Green"
+    }
+}
+impl Green {
+    pub fn new(action: impl Fn() + 'static) -> Self {
+        Green { action: Box::new(action) }
+    }
+    pub fn act(&self) {
+        (self.action)();
+    }
+}
+

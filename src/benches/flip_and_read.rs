@@ -5,10 +5,6 @@ use std::any::TypeId;
 use crate::validation::*;
 
 
-
-
-
-
 pub struct PositiveValidationStrategy;
 pub struct NegativeValidationStrategy;
 pub struct ZeroValidationStrategy;
@@ -66,16 +62,15 @@ impl Strategy for ZeroValidationStrategy {
 
 
 
-
-fn pressure_bench(c: &mut Criterion) {
+fn flip_and_read(c: &mut Criterion) {
     let mut strategy = GeneralValidationStrategy::new();
     strategy.add_strategy(PositiveValidationStrategy, 1, false);
     strategy.add_strategy(NegativeValidationStrategy, 2, false);
     strategy.add_strategy(ZeroValidationStrategy, 3, false);
 
-    let mut positive_number = 5;
-    let mut negative_number = -5;
-    let mut zero_number = 0;
+    let positive_number = 5;
+    let negative_number = -5;
+    let zero_number = 0;
 
     c.bench_function("pressure_bench", |b| {
         b.iter(|| {
@@ -99,9 +94,9 @@ fn pressure_bench(c: &mut Criterion) {
             }
 
             // Clear the validations and start over
-            // strategy.strategies.clear();
-            // strategy.priority_map.clear();
-            // strategy.omitted_strategies.clear();
+            strategy.strategies.clear();
+            strategy.priority_map.clear();
+            strategy.omitted_strategies.clear();
 
             strategy.add_strategy(PositiveValidationStrategy, 1, false);
             strategy.add_strategy(NegativeValidationStrategy, 2, false);
@@ -110,5 +105,5 @@ fn pressure_bench(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, pressure_bench);
+criterion_group!(benches, flip_and_read);
 criterion_main!(benches);

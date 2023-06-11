@@ -9,3 +9,8 @@ use std::marker::PhantomData;
 
 
 
+
+pub trait Proof {
+    fn validate(&mut self, f: &mut dyn FnMut(&mut dyn Any) -> bool) -> bool;
+}
+
