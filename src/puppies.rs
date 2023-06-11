@@ -30,7 +30,7 @@ fn pet_store_integration_test() {
     let delivery_thread = thread::spawn(move || {
         loop {
             let mut pet_store = pet_store_clone.lock().unwrap();
-            pet_store.deliver_puppies();
+            pet_store.deliver_puppy();
             thread::sleep(Duration::from_secs(1));
         }
     });

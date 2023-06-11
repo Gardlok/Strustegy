@@ -19,15 +19,12 @@ pub trait Validator {
     fn validate<'a>(&'a mut self, f: &mut dyn FnMut(&mut Self::Proof<'a>) -> bool) -> bool;
 }
 
-
-
 pub trait GenericValidator<T>{
     type Proof<'a>: 'a where Self: 'a;
     type Error;
 
     fn validate<'a>(&'a mut self, f: &mut dyn FnMut(&mut Self::Proof<'a>) -> bool) -> bool;
 }
-
 
 pub struct HigherOrderValidator<T, V: GenericValidator<T>> {
     validators: Vec<V>,

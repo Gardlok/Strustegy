@@ -26,14 +26,6 @@ pub trait Strategy {
 }
 
 
-pub struct StrategyContext<'a, T: 'static + Sync + Send + Clone, F> {
-    pub strategy: &'a dyn Strategy<Target = T, Error = ValidationError>,
-    pub type_id: TypeId,
-    pub priority: u32,
-    pub omitted: bool,
-    pub _phantom: PhantomData<&'a F>,
-}
-
 
 pub trait Validator {
     type Proof<'a>: 'a where Self: 'a;
@@ -90,7 +82,6 @@ where
 
 
 // Custom validation strategy //
-
 pub struct CustomValidationStrategy<T: 'static, F: Fn(&T) -> bool + 'static>(
     F,
     PhantomData<T>,
