@@ -44,34 +44,34 @@ pub trait Scope<'a, T> {
 
 
 
-trait Applicative: Pointed {
-    fn lift_a2<F, B, C>(self, b: Self::Wrapped<B>, f: F) -> Self::Wrapped<C>
-    where
-        F: FnMut(Self::Unwrapped, B) -> C;
-}
+// trait Applicative: Target {
+//     fn lift_a2<F, B, C>(self, b: Self::Wrapped<B>, f: F) -> Self::Wrapped<C>
+//     where
+//         F: FnMut(Self::Unwrapped, B) -> C;
+// }
 
-impl<A> Applicative for Option<A> {
-    fn lift_a2<F, B, C>(self, b: Self::Wrapped<B>, mut f: F) -> Self::Wrapped<C>
-    where
-        F: FnMut(Self::Unwrapped, B) -> C
-    {
-        let a = self?;
-        let b = b?;
-        Some(f(a, b))
-    }
-}
+// impl<A> Applicative for Option<A> {
+//     fn lift_a2<F, B, C>(self, b: Self::Wrapped<B>, mut f: F) -> Self::Wrapped<C>
+//     where
+//         F: FnMut(Self::Unwrapped, B) -> C
+//     {
+//         let a = self?;
+//         let b = b?;
+//         Some(f(a, b))
+//     }
+// }
 
-fn birth_year() -> Result<i32, String> {
-    Err("No birth year".to_string())
-}
+// fn birth_year() -> Result<i32, String> {
+//     Err("No birth year".to_string())
+// }
 
-fn current_year() -> Result<i32, String> {
-    Err("No current year".to_string())
-}
+// fn current_year() -> Result<i32, String> {
+//     Err("No current year".to_string())
+// }
 
-fn age() -> Result<i32, String> {
-    current_year().lift_a2(birth_year(), |cy, by| cy - by)
-}
+// fn age() -> Result<i32, String> {
+//     current_year().lift_a2(birth_year(), |cy, by| cy - by)
+// }
 
 
 
@@ -89,24 +89,24 @@ pub trait CompositionOperator {
 }
 
 pub struct ProofSet;
-impl CompositionOperator for ProofSet {
-    type Collection<T> = HashSet<T>;  // Or any other collection type
-}
+// impl CompositionOperator for ProofSet {
+//     type Collection<T> = HashSet<T>;  // Or any other collection type
+// }
 
 
 
-impl<'a, T, CF: CompositionOperator, CO> dyn Validator2<'a, T, CO> {  // Going dyn
-    fn validate_all(&self, target: &T) -> bool {          
+// impl<'a, T, CF: CompositionOperator, CO> dyn Validator2<'a, T, CO> {  // Going dyn
+//     fn validate_all(&self, target: &T) -> bool {          
                                                          
-        self.proofs.into_iter().all(|proof| proof.validate(target))
-    }
+//         self.proofs.into_iter().all(|proof| proof.validate(target))
+//     }
 
-    fn validate_any(&self, target: &T) -> bool {
-        self.proofs.into_iter().any(|proof| proof.validate(target))
-    }
+//     fn validate_any(&self, target: &T) -> bool {
+//         self.proofs.into_iter().any(|proof| proof.validate(target))
+//     }
 
-    // etc.
-}
+//     // etc.
+// }
 
 
 

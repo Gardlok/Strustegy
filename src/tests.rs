@@ -1,138 +1,161 @@
 
+use std::marker::PhantomData;
+
+use crate::validation::target::Target;
+use crate::validation::strategy::Strategy;
+use crate::validation::proof::Proof;
 
 
-#[macro_use]
-
-
-pub use crate::validation::*;
-// use crate::strategy_fn;
-pub use std::any::TypeId;
 
 #[cfg(test)]
-mod tests {
+mod tests_orig {
     use super::*;
 
-    struct PositiveValidationStrategy;
+    struct TestTarget {
+        value: bool,
+    }
 
-    impl Strategy for PositiveValidationStrategy {
-        type Target = i32;
-        type Error = ValidationError;
+    impl<'a> Target<'a> for TestTarget {
+        type Value = bool;
+        fn value(&'a self) -> Self::Value {
+            self.value
+        }
+    }
 
-        fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error> {
-            if *target > 0 {
-                Ok(())
-            } else {
-                Err(ValidationError::strategy_error(
-                    TypeId::of::<Self>(),
-                    "Number is not positive".to_string(),
-                ))
-            }
+    struct TestStrategy;
+
+    impl Strategy<TestTarget> for TestStrategy {
+        fn apply(&self, target: &TestTarget) -> bool {
+            target.value()
+        }
+    }
+
+    struct TestProof<'a> {
+        strategy: TestStrategy,
+        _phantom: PhantomData<&'a TestTarget>,
+    }
+
+    impl<'a> Proof<'a, TestTarget> for TestProof<'a> {
+        type Strategy = TestStrategy;
+        fn validate(&'a self, strategy: &Self::Strategy, target: &TestTarget) -> bool {
+            strategy.apply(target)
         }
     }
 
     #[test]
-    fn test_general_validation_strategy() {
-        let mut strategy = GeneralValidationStrategy::new();
-        strategy.add_strategy(PositiveValidationStrategy, 1, false);
-
-        let mut positive_number = 5;
-        assert!(strategy.apply(&mut positive_number).is_ok());
-
-        let mut negative_number = -5;
-        assert!(strategy.apply(&mut negative_number).is_err());
+    fn test_proof() {
+        let target = TestTarget { value: true };
+        let proof = TestProof {
+            strategy: TestStrategy,
+            _phantom: PhantomData,
+        };
+        assert!(proof.validate(&proof.strategy, &target));
     }
 
-    #[test]
-    fn test_general_validation_strategy_with_omitted_strategy() {
-        let mut strategy = GeneralValidationStrategy::new();
-        strategy.add_strategy(PositiveValidationStrategy, 1, true);
-
-        let mut negative_number = -5;
-        assert!(strategy.apply(&mut negative_number).is_ok());
-    }
-
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-    
-        struct FibonacciValidationStrategy;
-    
-        impl Strategy for FibonacciValidationStrategy {
-            type Target = (i32, i64);
-            type Error = ValidationError;
-    
-            fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error> {
-                let (n, expected) = *target;
-                let sqrt_5 = 5f64.sqrt();
-                let phi = (1.0 + sqrt_5) / 2.0;
-                let psi = (1.0 - sqrt_5) / 2.0;
-                let result = ((phi.powi(n) - psi.powi(n)) / sqrt_5).round() as i64;
-                if result == expected {
-                    Ok(())
-                } else {
-                    Err(ValidationError::strategy_error(
-                        TypeId::of::<Self>(),
-                        format!("Fibonacci number at index {} is {}, expected {}", n, result, expected),
-                    ))
-                }
-            }
-        }
-
-    #[test]
-    fn test_fibonacci_with_general_validation_strategy() {
-        let mut strategy = GeneralValidationStrategy::new();
-        strategy.add_strategy(FibonacciValidationStrategy, 1, false);
-
-        let fibonacci_sequence = vec![
-            (0, 0),
-            (1, 1),
-            (2, 1),
-            (3, 2),
-            (4, 3),
-            (5, 5),
-            (6, 8),
-            (7, 13),
-            (8, 21),
-            (9, 34),
-            (10, 55),
-        ];
-
-        for (n, expected) in fibonacci_sequence {
-            let mut target = (n, expected);
-            assert!(strategy.apply(&mut target).is_ok());
-        }
-    }
-
-
-
-
-
-    #[test]
-    fn test_general_validation_strategy() {
-        let mut strategy = GeneralValidationStrategy::new();
-
-        // Add a strategy that checks if the input is greater than 5
-        strategy.add_strategy(
-            CustomValidationStrategy::new(|&x: &i32| x > 5),
-            1,
-            false,
-        );
-
-        // Add a strategy that checks if the input is even
-        strategy.add_strategy(
-            CustomValidationStrategy::new(|&x: &i32| x % 2 == 0),
-            2,
-            false,
-        );
-
-        // Test with a valid input
-        let mut input = 6;
-        assert!(strategy.apply(&mut input).is_ok());
-
-        // Test with an invalid input
-        let mut input = 3;
-        assert!(strategy.apply(&mut input).is_err());
-    }
+   
 }
+
+#[cfg(test)]
+mod tests_basics {
+    use super::*;
+
+    use crate::validation::logic::Scope;
+    use crate::validation::logic::CompositionOperator;
+    use crate::validation::validator::Validator;
+    use crate::validation::strategy::GenericStrategy;
+
+    use crate::validation::proof::Proof;
+
+
+    #[test]
+    fn test_generic_validator() {
+
+        struct Target {
+            value: i32,
+        }
+
+        impl Target {
+            fn new(value: i32) -> Self {
+                Self { value }
+            }
+        }
+
+        impl<'a> Target<'a> for Target {
+            type Value = i32;
+            fn value(&'a self) -> Self::Value {
+                self.value
+            }
+        }
+
+        // Create a strategy
+        struct Strategy {
+            value: i32,
+        }
+
+        impl Strategy {
+            fn new(value: i32) -> Self {
+                Self { value }
+            }
+        }
+
+        impl Strategy<Target> for Strategy {
+            fn apply(&self, target: &Target) -> bool {
+                target.value() == self.value
+            }
+        }
+
+        // Create a proof
+        struct Proof {
+            strategy: Strategy,
+        }
+
+        impl<'a> Proof<'a, Target> for Proof {
+            type Strategy = Strategy;
+            fn validate(&'a self, strategy: &Self::Strategy, target: &Target) -> bool {
+                strategy.apply(target)
+            }
+        }
+
+        // Create a scope
+        struct Scope {
+            proof: Proof,
+        }
+
+        impl<'a> Scope<'a, Target> for Scope {
+            type Proof = Proof;
+            fn proof<'s>(&'s self) -> &'s Self::Proof {
+                &self.proof
+            }
+            fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &Target) -> bool {
+                proof.validate(&self.proof.strategy, target)
+            }
+        }
+
+        // Create a validator
+        struct Validator {
+            scope: Scope,
+        }
+
+        impl<'a> Validator<'a, Target> for Validator {
+            type Scope = Scope;
+            fn validate(&'a self, scope: &Self::Scope, target: &Target) -> bool {
+                let proof = scope.proof();
+                scope.validate(proof, target)
+            }
+        }
+
+        // Create a generic validator
+        let validator = GenericValidator::new(Scope {
+            proof: Proof {
+                strategy: Strategy::new(42),
+            },
+        });
+
+        // Test the validator
+        let target = Target::new(42);
+        assert!(validator.validate(&validator.scope, &target));
+
+        let target = Target::new(43);
+        assert!(!validator.validate(&validator.scope, &target));
+    }
 }

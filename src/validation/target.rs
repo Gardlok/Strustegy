@@ -9,12 +9,13 @@ pub trait Target<'a> {
     fn value(&'a self) -> Self::Value;
 }
 
-impl<'a, T: 'a> Target<'a> for T {
-    type Value = &'a T;
-    fn value(&'a self) -> Self::Value {
-        self
-    }
-}
+// impl<'a, T: 'a> Target<'a> for T {
+//     type Value = &'a T;
+//     fn value(&'a self) -> Self::Value {
+//         eprintln!("value: self={:p}", self);
+//         self
+//     }
+// }
 
 // pub trait Target<'a> {
 //     type Value<T>: Validity where Self: 'a; 
