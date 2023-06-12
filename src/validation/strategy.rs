@@ -18,14 +18,48 @@ use crate::validation::target::*;
 use crate::validation::proof::*;
 
 use crate::validation::validity::Validity;
-use crate::validation::proof::Proof;
-use crate::validation::logic::{Scope, HigherOrderScope};
-use crate::validation::validator::Validator;
+// use crate::validation::proof::Proof;
+// use crate::validation::logic::Scope;
+// use crate::validation::validator::Validator;
 
+
+
+
+
+
+pub trait Target<'a> {
+    type Value: 'a;
+    fn value(&'a self) -> Self::Value;
+}
 
 pub trait Strategy<T> {
     fn apply(&self, target: &T) -> bool;
 }
+
+pub trait Proof<'a, T> {
+    type Strategy: for<'s> Strategy<T>;
+    fn validate(&'a self, strategy: &Self::Strategy, target: &T) -> bool;
+}
+
+pub trait Scope<'a, T> {
+    type Proof: for<'s> Proof<'s, T>;
+    fn proof<'s>(&'s self) -> &'s Self::Proof;
+    fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &T) -> bool;
+}
+
+pub trait Validator<'a, T> {
+    type Scope: for<'s> Scope<'s, T>;
+    fn validate(&'a self, scope: &Self::Scope, target: &T) -> bool;
+}
+
+
+// This strategy is a simple wrapper around a function that takes a target and returns a boolean
+// This is the most basic strategy, and can be used to create more complex strategies
+pub struct GenericValidator<'a, T, S: for<'s> Scope<'s, T>> {
+    pub scope: S,
+    _phantom: PhantomData<&'a T>,
+}
+
 
 pub struct GenericStrategy<'a, T, P: Proof<'a, T>> {
     pub proof: P,
@@ -33,162 +67,97 @@ pub struct GenericStrategy<'a, T, P: Proof<'a, T>> {
 }
 
 
-pub struct HigherOrderStrategy<'a, T, P: Proof<'a, T>> {
-    pub proofs: Vec<P>,
-    _phantom: std::marker::PhantomData<&'a T>,
+pub struct GenericScope<'a, T, P: for<'s> Proof<'s, T>> {
+    pub proof: P,
+    _phantom: PhantomData<&'a T>,
+}
+
+
+pub struct GenericProof<'a, T, S: Strategy<T>> {
+    pub strategy: S,
+    _phantom: PhantomData<&'a T>,
+}
+
+
+// These are the implementations of the traits for the generic strategy
+// enabling the generic strategy to be used as a concrete strategy and
+// to be used as a generic strategy. Without that ability, the generic
+// strategy would be useless. 
+impl <'a, T, S: Strategy<T>> GenericProof<'a, T, S> {
+    pub fn new(strategy: S) -> Self {
+        Self {
+            strategy,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+
+impl<'a, T, P: for<'s> Proof<'s, T>> GenericStrategy<'a, T, P> {
+    pub fn new(proof: P) -> Self {
+        Self {
+            proof,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, T, P: for<'s> Proof<'s, T>> GenericScope<'a, T, P> {
+    pub fn new(proof: P) -> Self {
+        Self {
+            proof,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, T, S: for<'s> Scope<'s, T>> GenericValidator<'a, T, S> {
+    pub fn new(scope: S) -> Self {
+        Self {
+            scope,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+
+
+
+impl<'a, T, P: for<'s> Proof<'s, T, Strategy = P>> Scope<'a, T> for GenericScope<'a, T, P> {
+    type Proof = P;
+    fn proof<'s>(&'s self) -> &'s Self::Proof {
+        &self.proof
+    }
+    fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &T) -> bool {
+        proof.validate(&self.proof, target)
+    }
 }
 
 
 
 
 
-
-
-// pub struct ScopeStrategy<F, S>
-// where
-//     F: FnMut(&mut dyn Any) -> bool,
-//     S: Strategy<Target = dyn Any, Error = std::convert::Infallible>,
-// {
-//     pub proof: F,
-//     pub strategy: S,
-// }
-
-// impl<F, S> Validator for ScopeStrategy<F, S>
-// where
-
-//     F: FnMut(&mut dyn Any) -> bool,
-//     S: Strategy<Target = dyn Any, Error = std::convert::Infallible>,
-// {
-//     type Proof<'a> = ScopedProof<'a, F, S> where F: 'a, S: 'a;
-//     type Error = std::convert::Infallible;
-
-//     fn validate<'a>(&'a mut self, f: &mut dyn FnMut(&mut Self::Proof<'a>) -> bool) -> bool {
-//         let mut proof = ScopedProof { strategy: self };
-//         f(&mut proof)
-//     }
-// }
-
-
-// pub struct ScopedProof<'a, F, S>
-// where
-//     F: FnMut(&mut dyn Any) -> bool,
-//     S: Strategy<Target = dyn Any, Error = std::convert::Infallible>,
-// {
-//     strategy: &'a mut ScopeStrategy<F, S>,
-// }
-
-
-// impl<'a, F, S> Proof for ScopedProof<'a, F, S>
-// where
-//     F: FnMut(&mut dyn Any) -> bool + 'static,
-//     S: Strategy<Target = dyn Any, Error = std::convert::Infallible> + 'static,
-// {
-//     fn validate(&mut self, f: &mut dyn for<'b> FnMut(&'b mut ScopedProof<'a, F, S>) -> bool) -> bool {
-//         f(self)
-//     }
-// }
+// These traits support the use of the generic strategy as a concrete strategy
+impl<'a, T, S: for<'s> Scope<'s, T>> Validator<'a, T> for GenericValidator<'a, T, S> {
+    type Scope = S;
+    fn validate(&'a self, scope: &Self::Scope, target: &T) -> bool {  // This is the same as the generic scope validate
+        let proof = scope.proof();
+        scope.validate(proof, target)
+    }
+}
 
 
 
-// // Custom validation strategy //
-// pub struct CustomValidationStrategy<T: 'static, F: Fn(&T) -> bool + 'static>(
-//     F,
-//     PhantomData<T>,
-// );
 
-// impl<T: 'static, F: Fn(&T) -> bool + 'static> CustomValidationStrategy<T, F> {
-//     pub fn new(strategy: F) -> Self {
-//         CustomValidationStrategy(strategy, PhantomData)
-//     }
-// }
-
-// pub trait ValidationConfig<T: 'static> {
-//     fn is_valid(&self, input: &T) -> bool;
-//     fn as_any(&self) -> &dyn Any;
-// }
-// impl<T: 'static, F: Fn(&T) -> bool + 'static> ValidationConfig<T> for CustomValidationStrategy<T, F> {
-//     fn is_valid(&self, input: &T) -> bool {
-//         (self.0)(input)
-//     }
-
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-// }
-
-// impl<T: 'static, F: Fn(&T) -> bool + 'static> Strategy for CustomValidationStrategy<T, F> {
-//     type Target = T;
-//     type Error = ValidationError;
-
-//     fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error> {
-//         if self.is_valid(target) {
-//             Ok(())
-//         } else {
-//             Err(ValidationError::strategy_error(
-//                 TypeId::of::<Self>(),
-//                 "Validation failed".to_string(),
-//             ))
-//         }
-//     }
-// }
+impl<'a, T, P: for<'s> Proof<'s, T, Strategy = P>> Scope<'a, T> for GenericStrategy<'a, T, P> {
+    type Proof = P;
+    fn proof<'s>(&'s self) -> &'s Self::Proof {
+        &self.proof
+    }
+    fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &T) -> bool {
+        proof.validate(&self.proof, target)
+    }
+}
 
 
-// General validation strategy //
-// pub struct GeneralValidationStrategy<T: 'static> {
-//     pub strategies: HashMap<TypeId, Box<dyn Strategy<Target = T, Error = ValidationError>>>,
-//     pub priority_map: TreeMap<u32, TypeId>,
-//     pub omitted_strategies: HashSet<TypeId>,
-// }
-
-// impl<T: 'static> GeneralValidationStrategy<T> {
-//     pub fn new() -> Self {
-//         GeneralValidationStrategy {
-//             strategies: HashMap::new(),
-//             priority_map: TreeMap::new(),
-//             omitted_strategies: HashSet::new(),
-//         }
-//     }
-
-//     pub fn add_strategy<S: 'static + Strategy<Target = T, Error = ValidationError>>(
-//         &mut self,
-//         strategy: S,
-//         priority: u32,
-//         omitted: bool,
-//     ) {
-//         let type_id = TypeId::of::<S>();
-//         self.strategies.insert(
-//             type_id,
-//             Box::new(strategy),
-//         );
-//         self.priority_map.insert(priority, type_id);
-//         if omitted {
-//             self.omitted_strategies.insert(type_id);
-//         }
-//     }
-// }
-
-// impl<T: 'static> Strategy for GeneralValidationStrategy<T> {
-//     type Target = T;
-//     type Error = ValidationError;
-
-//     fn apply(&mut self, target: &mut Self::Target) -> Result<(), Self::Error> {
-//         let mut errors = Vec::new();
-//         for entry in self.priority_map.iter() {
-//             let type_id = entry.value();
-//             if !self.omitted_strategies.contains(type_id) {
-//                 if let Some(mut strategy) = self.strategies.get_mut(type_id) {
-//                     if let Err(error) = strategy.apply(target) {
-//                         errors.push(error);
-//                     }
-//                 }
-//             }
-//         }
-
-//         if errors.is_empty() {
-//             Ok(())
-//         } else {
-//             Err(ValidationError::multiple_errors(errors))
-//         }
-//     }
-// }
 
