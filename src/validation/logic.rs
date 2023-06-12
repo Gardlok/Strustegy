@@ -13,10 +13,24 @@ use std::marker::PhantomData;
 
 use crate::validation::error::ValidationError;
 use crate::validation::validity::Validity;
-use crate::validation::target::Target;
+// use crate::validation::target::Target;
 use crate::validation::proof::Proof;
 use crate::validation::validator::Validator;
 use crate::validation::strategy::{Strategy, GenericStrategy, GenericProof, GenericValidator};
+
+
+
+
+pub trait Target<'a> {
+    type Value: 'a;
+    fn value(&'a self) -> Self::Value;
+}
+
+
+
+
+
+
 
 
 // pub struct Operator {

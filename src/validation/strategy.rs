@@ -57,7 +57,7 @@ pub trait Validator<'a, T> {
 // This is the most basic strategy, and can be used to create more complex strategies
 pub struct GenericValidator<'a, T, S: for<'s> Scope<'s, T>> {
     pub scope: S,
-    _phantom: PhantomData<&'a T>,
+    pub(crate) _phantom: PhantomData<&'a T>,
 }
 
 

@@ -4,10 +4,10 @@ use crate::validation::validity::Validity;
 
 use std::any::{Any, TypeId};
 
-pub trait Target<'a> {
-    type Value: 'a;
-    fn value(&'a self) -> Self::Value;
-}
+// pub trait Target<'a> {
+//     type Value: 'a;
+//     fn value(&'a self) -> Self::Value;
+// }
 
 // impl<'a, T: 'a> Target<'a> for T {
 //     type Value = &'a T;

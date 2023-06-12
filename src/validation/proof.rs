@@ -8,7 +8,7 @@ use std::error::Error;
 use std::marker::PhantomData;
 
 use crate::validation::validity::Validity;
-use crate::validation::target::Target;
+// use crate::validation::target::Target;
 use crate::validation::strategy::{Strategy, GenericStrategy, GenericValidator, GenericProof};
 use crate::validation::validator::Validator;
 use crate::validation::logic::Scope;

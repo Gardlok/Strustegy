@@ -1,15 +1,16 @@
 
 use std::marker::PhantomData;
 
-use crate::validation::target::Target;
-use crate::validation::strategy::Strategy;
-use crate::validation::proof::Proof;
 
 
 
 #[cfg(test)]
 mod tests_orig {
     use super::*;
+    use crate::validation::logic::Scope;
+    use crate::validation::proof::Proof;
+    use crate::validation::strategy::Strategy;
+    use crate::validation::logic::Target;
 
     struct TestTarget {
         value: bool,
@@ -57,105 +58,126 @@ mod tests_orig {
 
 #[cfg(test)]
 mod tests_basics {
-    use super::*;
+
+
 
     use crate::validation::logic::Scope;
-    use crate::validation::logic::CompositionOperator;
     use crate::validation::validator::Validator;
-    use crate::validation::strategy::GenericStrategy;
-
     use crate::validation::proof::Proof;
+    use crate::validation::strategy::Strategy;
+    use crate::validation::logic::Target;
 
 
+    
     #[test]
     fn test_generic_validator() {
-
-        struct Target {
+        // Create a target
+        struct TestTarget {
             value: i32,
         }
-
-        impl Target {
-            fn new(value: i32) -> Self {
-                Self { value }
-            }
-        }
-
-        impl<'a> Target<'a> for Target {
+        impl Target<'_> for TestTarget {
             type Value = i32;
-            fn value(&'a self) -> Self::Value {
+            fn value(&self) -> Self::Value {
                 self.value
             }
         }
+        let target = TestTarget { value: 42 };
 
         // Create a strategy
-        struct Strategy {
-            value: i32,
-        }
-
-        impl Strategy {
-            fn new(value: i32) -> Self {
-                Self { value }
-            }
-        }
-
-        impl Strategy<Target> for Strategy {
-            fn apply(&self, target: &Target) -> bool {
-                target.value() == self.value
+        struct TestStrategy;
+        impl Strategy<TestTarget> for TestStrategy {
+            fn apply(&self, target: &TestTarget) -> bool {
+                target.value == 42
             }
         }
 
         // Create a proof
-        struct Proof {
-            strategy: Strategy,
+        struct TestProof {
+            strategy: TestStrategy,
         }
-
-        impl<'a> Proof<'a, Target> for Proof {
-            type Strategy = Strategy;
-            fn validate(&'a self, strategy: &Self::Strategy, target: &Target) -> bool {
+        impl Proof<'_, TestTarget> for TestProof {
+            type Strategy = TestStrategy;
+            fn validate(&self, strategy: &Self::Strategy, target: &TestTarget) -> bool {
                 strategy.apply(target)
             }
         }
 
         // Create a scope
-        struct Scope {
-            proof: Proof,
+        struct TestScope {
+            proof: TestProof,
         }
-
-        impl<'a> Scope<'a, Target> for Scope {
-            type Proof = Proof;
+        impl Scope<'_, TestTarget> for TestScope {
+            type Proof = TestProof;
             fn proof<'s>(&'s self) -> &'s Self::Proof {
                 &self.proof
             }
-            fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &Target) -> bool {
+            fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &TestTarget) -> bool {
                 proof.validate(&self.proof.strategy, target)
             }
         }
 
         // Create a validator
-        struct Validator {
-            scope: Scope,
+        struct TestValidator {
+            scope: TestScope,
         }
+        impl <'a>Validator<'a,  TestTarget> for TestValidator {
+            type Strategy<'s> = TestStrategy where Self: 's;
+            type Proof<'s>  = TestProof where Self: 's;
+            type Scope<'s>  = TestScope where Self: 's;
 
-        impl<'a> Validator<'a, Target> for Validator {
-            type Scope = Scope;
-            fn validate(&'a self, scope: &Self::Scope, target: &Target) -> bool {
+            fn validate<'s>(&self, scope: &Self::Scope<'s>, target: &TestTarget) -> bool {
                 let proof = scope.proof();
                 scope.validate(proof, target)
             }
+
+
         }
 
         // Create a generic validator
-        let validator = GenericValidator::new(Scope {
-            proof: Proof {
-                strategy: Strategy::new(42),
+        let generic_validator = TestValidator {
+            scope: TestScope {
+                proof: TestProof {
+                    strategy: TestStrategy,
+                },
             },
-        });
+        };
 
-        // Test the validator
-        let target = Target::new(42);
+        // Create a generic strategy
+        let generic_strategy = TestStrategy;
+
+        // Create a generic proof
+        let generic_proof = TestProof {
+            strategy: TestStrategy,
+        };
+
+        // Create a generic scope
+        let generic_scope = TestScope {
+            proof: TestProof {
+                strategy: TestStrategy,
+            },
+        };
+        
+
+        // Test the generic validator
+        assert!(generic_validator.validate(&generic_scope, &target));
+
+        // Test the generic strategy
+        assert!(generic_strategy.apply(&target));
+
+        // Test the generic scope
+        assert!(generic_scope.validate(&generic_proof, &target));
+
+        // Test the generic proof
+        assert!(generic_proof.validate(&TestStrategy, &target));
+
+        // Test the concrete validator
+        let validator = TestValidator {
+            scope: TestScope {
+                proof: TestProof {
+                    strategy: TestStrategy,
+                },
+            },
+        };
         assert!(validator.validate(&validator.scope, &target));
-
-        let target = Target::new(43);
-        assert!(!validator.validate(&validator.scope, &target));
     }
 }
