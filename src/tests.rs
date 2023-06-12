@@ -1,5 +1,7 @@
 
-use std::marker::PhantomData;
+// use std::marker::PhantomData;
+use std::any::{Any, TypeId};
+use std::error::Error;
 
 
 
@@ -7,10 +9,12 @@ use std::marker::PhantomData;
 #[cfg(test)]
 mod tests_orig {
     use super::*;
-    use crate::validation::logic::Scope;
+
     use crate::validation::proof::Proof;
+    use crate::validation::logic::Scope;
     use crate::validation::strategy::Strategy;
-    use crate::validation::logic::Target;
+    use crate::validation::strategy::Target;
+    use std::marker::PhantomData;
 
     struct TestTarget {
         value: bool,
@@ -61,11 +65,12 @@ mod tests_basics {
 
 
 
-    use crate::validation::logic::Scope;
+    // use crate::validation::logic::Scope;
     use crate::validation::validator::Validator;
     use crate::validation::proof::Proof;
     use crate::validation::strategy::Strategy;
-    use crate::validation::logic::Target;
+    use crate::validation::strategy::Target;
+    use crate::validation::logic::Scope;
 
 
     
@@ -181,3 +186,92 @@ mod tests_basics {
         assert!(validator.validate(&validator.scope, &target));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::validation::strategy::*;
+
+    // #[test]
+    // fn test_number_validation() {
+    //     // Create a set of numbers to validate
+    //     let numbers = vec![2, 4, 6, 8, 10];
+
+    //     // Create a proof that validates whether a number is positive
+    //     let positive_proof = GenericProof::new(|&n: &i32| n > 0);
+
+    //     // Create a proof that validates whether a number is even
+    //     let even_proof = GenericProof::new(|&n: &i32| n % 2 == 0);
+
+    //     // Create a strategy that uses both proofs
+    //     let strategy = GenericStrategy::new(vec![positive_proof, even_proof]);
+
+    //     // Validate the numbers using the strategy
+    //     for &number in &numbers {
+    //         assert!(strategy.validate(&number));
+    //     }
+
+    //     // Save the strategy to a binary tree
+    //     let tree = strategy.to_binary_tree();
+
+    //     // Load a new strategy from the binary tree
+    //     let loaded_strategy = GenericStrategy::from_binary_tree(tree);
+
+    //     // Validate the numbers using the loaded strategy
+    //     for &number in &numbers {
+    //         assert!(loaded_strategy.validate(&number));
+    //     }
+    // }
+}
+
+
+
+
+
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use rand::Rng;
+
+//     use crate::validation::logic::*;
+//     use crate::validation::proof::*;
+//     use crate::validation::strategy::*;
+//     use crate::validation::validator::*;
+
+//     struct TestFunctor<'a, T: 'a> {
+//         value: Option<T>,
+//         phantom: std::marker::PhantomData<&'a T>,
+//     }
+
+//     impl<'a, T> Functor<'a> for TestFunctor<'a, T> {
+//         type Raw = T;
+//         type Target<'s, B> = TestFunctor<'s, B>;
+
+//         fn map<'s, F, B>(self, f: F) -> Self::Target<'s, B>
+//         where
+//             F: FnMut(Self::Raw) -> B,
+//         {
+//             TestFunctor {
+//                 value: self.value.map(f),
+//                 phantom: std::marker::PhantomData,
+//             }
+//         }
+//     }
+
+//     #[test]
+//     fn test_functor() {
+//         let mut rng = rand::thread_rng();
+
+//         for _ in 0..100 {
+//             let x: i32 = rng.gen();
+//             let functor = TestFunctor {
+//                 value: Some(x),
+//                 phantom: std::marker::PhantomData,
+//             };
+//             let result = functor.map(|x| x.to_string());
+//             assert_eq!(result.value, Some(x.to_string()));
+//         }
+//     }
+// }

@@ -1,6 +1,6 @@
 
 
-use std::error::Error;
+
 use std::marker::PhantomData;
 use std::any::Any;
 use std::any::TypeId;
@@ -18,28 +18,42 @@ use crate::validation::target::*;
 use crate::validation::proof::*;
 
 use crate::validation::validity::Validity;
-// use crate::validation::proof::Proof;
-// use crate::validation::logic::Scope;
-// use crate::validation::validator::Validator;
+
+
+// These are the traits that are used to define the validation logic.
+
+// Generics
+// [T: Target] [F: Functor] [S: Scope] [P: Proof] [V: Validator] 
+
+// Traits and their associated types and functions
+// Target: value() -> Value
+// Functor: map() -> Output
+// Scope: proof() -> Proof, validate() -> bool
+// Proof: validate() -> bool
+// Validator: validate() -> bool
+
+// Strategies
+// GenericStrategy
 
 
 
 
 
-
-pub trait Target<'a> {
-    type Value: 'a;
-    fn value(&'a self) -> Self::Value;
-}
-
+//
 pub trait Strategy<T> {
     fn apply(&self, target: &T) -> bool;
 }
 
-pub trait Proof<'a, T> {
-    type Strategy: for<'s> Strategy<T>;
-    fn validate(&'a self, strategy: &Self::Strategy, target: &T) -> bool;
+
+pub trait Functor {
+    type Inner;
+    type Output<'a, 'c>: Functor;
+
+    fn map<'a, 'c, F, B>(self, f: F) -> Self::Output<'a, 'c>
+    where
+        F: FnOnce(Self::Inner) -> B;
 }
+
 
 pub trait Scope<'a, T> {
     type Proof: for<'s> Proof<'s, T>;
@@ -47,117 +61,42 @@ pub trait Scope<'a, T> {
     fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &T) -> bool;
 }
 
+//
+pub trait Target<'a> {
+    type Value: 'a;
+    fn value(&'a self) -> Self::Value;
+}
+pub struct TargetContext<T: for<'a> Target<'a>> {
+    pub target: T,
+    pub type_id: TypeId,
+    pub priority: u32,
+    pub omitted: bool,
+}
+
+
+// 
+pub trait Proof<'a, T> {
+    type Strategy: for<'s> Strategy<T>; 
+                                        
+    fn validate(&'a self, strategy: &Self::Strategy, target: &T) -> bool;
+}
+
+
+
+//
 pub trait Validator<'a, T> {
     type Scope: for<'s> Scope<'s, T>;
     fn validate(&'a self, scope: &Self::Scope, target: &T) -> bool;
 }
 
 
-// This strategy is a simple wrapper around a function that takes a target and returns a boolean
-// This is the most basic strategy, and can be used to create more complex strategies
-pub struct GenericValidator<'a, T, S: for<'s> Scope<'s, T>> {
-    pub scope: S,
-    pub(crate) _phantom: PhantomData<&'a T>,
-}
+// pub trait Validator<'a, T> {
+//     type Scope<'s>: Scope<'s, T> where Self: 's, Self: 'a;  // Scoped to lifetimes of the validator and the target
+//     type Strategy<'s>: Strategy<T> where Self: 's;          // Scoped to the lifetime of the validator
+//     type Proof<'s>: Proof<'s, T> where Self: 's;            // Scoped to the lifetime of the validator
 
-
-pub struct GenericStrategy<'a, T, P: Proof<'a, T>> {
-    pub proof: P,
-    _phantom: std::marker::PhantomData<&'a T>,
-}
-
-
-pub struct GenericScope<'a, T, P: for<'s> Proof<'s, T>> {
-    pub proof: P,
-    _phantom: PhantomData<&'a T>,
-}
-
-
-pub struct GenericProof<'a, T, S: Strategy<T>> {
-    pub strategy: S,
-    _phantom: PhantomData<&'a T>,
-}
-
-
-// These are the implementations of the traits for the generic strategy
-// enabling the generic strategy to be used as a concrete strategy and
-// to be used as a generic strategy. Without that ability, the generic
-// strategy would be useless. 
-impl <'a, T, S: Strategy<T>> GenericProof<'a, T, S> {
-    pub fn new(strategy: S) -> Self {
-        Self {
-            strategy,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-
-impl<'a, T, P: for<'s> Proof<'s, T>> GenericStrategy<'a, T, P> {
-    pub fn new(proof: P) -> Self {
-        Self {
-            proof,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<'a, T, P: for<'s> Proof<'s, T>> GenericScope<'a, T, P> {
-    pub fn new(proof: P) -> Self {
-        Self {
-            proof,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<'a, T, S: for<'s> Scope<'s, T>> GenericValidator<'a, T, S> {
-    pub fn new(scope: S) -> Self {
-        Self {
-            scope,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-
-
-
-impl<'a, T, P: for<'s> Proof<'s, T, Strategy = P>> Scope<'a, T> for GenericScope<'a, T, P> {
-    type Proof = P;
-    fn proof<'s>(&'s self) -> &'s Self::Proof {
-        &self.proof
-    }
-    fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &T) -> bool {
-        proof.validate(&self.proof, target)
-    }
-}
-
-
-
-
-
-// These traits support the use of the generic strategy as a concrete strategy
-impl<'a, T, S: for<'s> Scope<'s, T>> Validator<'a, T> for GenericValidator<'a, T, S> {
-    type Scope = S;
-    fn validate(&'a self, scope: &Self::Scope, target: &T) -> bool {  // This is the same as the generic scope validate
-        let proof = scope.proof();
-        scope.validate(proof, target)
-    }
-}
-
-
-
-
-impl<'a, T, P: for<'s> Proof<'s, T, Strategy = P>> Scope<'a, T> for GenericStrategy<'a, T, P> {
-    type Proof = P;
-    fn proof<'s>(&'s self) -> &'s Self::Proof {
-        &self.proof
-    }
-    fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &T) -> bool {
-        proof.validate(&self.proof, target)
-    }
-}
+//     fn validate(&'a self, scope: &Self::Scope<'a>, target: &T) -> bool;
+// }
 
 
 

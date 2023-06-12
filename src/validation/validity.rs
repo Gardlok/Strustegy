@@ -7,23 +7,63 @@ use dashmap::DashMap;
 use crate::validation::*;
 
 use crate::validation::error::ValidationError;
+// use crate::validation::logic::Functor;
 
 use std::sync::{Arc, RwLock, Mutex};
 
 use std::error::Error;
 use std::fmt::{Debug, Display};
 
-pub trait Validity {
-    type Target<'a, T>: 'a where Self: 'a; 
-    type Validness<'a>: 'a where Self: 'a;
-    type Error<E>: 'static + Send + Sync + Clone + Debug + Display + Error where Self: 'static;
 
-    fn validate<'a, T>(&'a self, target: &'a T) -> Self::Validness<'a> where T: 'a; 
 
-    fn validate_mut<'a, T>(&'a mut self, target: &'a mut T) -> Self::Validness<'a> where T: 'a;
 
-    
+pub struct Validity<T> {
+    value: Option<T>,
+    error: Option<ValidationError>,
 }
+
+impl<T> Validity<T> {
+    // Create a new Validity from a valid value
+    pub fn new(value: T) -> Self {
+        Validity {
+            value: Some(value),
+            error: None,
+        }
+    }
+
+    // Create a new Validity from an error
+    pub fn error(error: ValidationError) -> Self {
+        Validity {
+            value: None,
+            error: Some(error),
+        }
+    }
+
+    // Transform the value contained in the Validity
+    pub fn map<U, F>(self, f: F) -> Validity<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self.value {
+            Some(value) => Validity::new(f(value)),
+            None => Validity::error(self.error.unwrap()),
+        }
+    }
+
+    // Chain multiple operations that may fail
+    pub fn and_then<U, F>(self, f: F) -> Validity<U>
+    where
+        F: FnOnce(T) -> Validity<U>,
+    {
+        match self.value {
+            Some(value) => f(value),
+            None => Validity::error(self.error.unwrap()),
+        }
+    }
+}
+
+
+
 
 pub enum Validness<T> {
     Valid(T),

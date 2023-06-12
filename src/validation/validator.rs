@@ -18,11 +18,3 @@ use crate::validation::logic::CompositionOperator;
 
 
 
-pub trait Validator<'a, T> {
-    type Scope<'s>: Scope<'s, T> where Self: 's, Self: 'a;  // Scoped to lifetimes of the validator and the target
-    type Strategy<'s>: Strategy<T> where Self: 's;          // Scoped to the lifetime of the validator
-    type Proof<'s>: Proof<'s, T> where Self: 's;            // Scoped to the lifetime of the validator
-
-    fn validate(&'a self, scope: &Self::Scope<'a>, target: &T) -> bool;
-}
-

@@ -20,6 +20,7 @@ use crate::validation::logic::Scope;
 
 pub trait Proof<'a, T> {
     type Strategy: Strategy<T>;
+    
     fn validate(&'a self, strategy: &Self::Strategy, target: &T) -> bool;
 }
 
