@@ -10,30 +10,15 @@ use crossbeam::atomic::AtomicCell;
 use crossbeam_skiplist::SkipMap as TreeMap;
 
 use crate::validation::error::ValidationError;
-
-
-
-use crate::validation::validator::*;
-use crate::validation::target::*;
-use crate::validation::proof::*;
-
 use crate::validation::validity::Validity;
 
 
+
+use std::error::Error;
+
+
+
 // These are the traits that are used to define the validation logic.
-
-// Generics
-// [T: Target] [F: Functor] [S: Scope] [P: Proof] [V: Validator] 
-
-// Traits and their associated types and functions
-// Target: value() -> Value
-// Functor: map() -> Output
-// Scope: proof() -> Proof, validate() -> bool
-// Proof: validate() -> bool
-// Validator: validate() -> bool
-
-// Strategies
-// GenericStrategy
 
 
 
@@ -44,10 +29,20 @@ pub trait Strategy<T> {
     fn apply(&self, target: &T) -> bool;
 }
 
-
 pub trait Functor {
     type Inner;
     type Output<'a, 'c>: Functor;
+
+    fn map<'a, 'c, F, G, B>(self, f: F, g: G) -> Self::Output<'a, 'c>
+    where
+        F: FnOnce(Self::Inner) -> B,
+        G: FnOnce(B) -> Self::Output<'a, 'c>;
+}
+
+//
+pub trait PartFunctor {
+    type Inner;
+    type Output<'a, 'c>: PartFunctor;
 
     fn map<'a, 'c, F, B>(self, f: F) -> Self::Output<'a, 'c>
     where
@@ -55,6 +50,8 @@ pub trait Functor {
 }
 
 
+
+//
 pub trait Scope<'a, T> {
     type Proof: for<'s> Proof<'s, T>;
     fn proof<'s>(&'s self) -> &'s Self::Proof;
@@ -76,7 +73,7 @@ pub struct TargetContext<T: for<'a> Target<'a>> {
 
 // 
 pub trait Proof<'a, T> {
-    type Strategy: for<'s> Strategy<T>; 
+    type Strategy: for<'s> Strategy<T>;  // 
                                         
     fn validate(&'a self, strategy: &Self::Strategy, target: &T) -> bool;
 }

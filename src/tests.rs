@@ -10,10 +10,13 @@ use std::error::Error;
 mod tests_orig {
     use super::*;
 
-    use crate::validation::proof::Proof;
-    use crate::validation::logic::Scope;
+
     use crate::validation::strategy::Strategy;
     use crate::validation::strategy::Target;
+    use crate::validation::strategies::GenericProof;
+    use crate::validation::Scope;
+    use crate::validation::Validator;
+    use crate::validation::Proof;
     use std::marker::PhantomData;
 
     struct TestTarget {
@@ -66,11 +69,12 @@ mod tests_basics {
 
 
     // use crate::validation::logic::Scope;
-    use crate::validation::validator::Validator;
-    use crate::validation::proof::Proof;
+   
+    use crate::validation::Proof;
     use crate::validation::strategy::Strategy;
     use crate::validation::strategy::Target;
-    use crate::validation::logic::Scope;
+    use crate::validation::Scope;
+    use crate::validation::Validator;
 
 
     
@@ -126,11 +130,10 @@ mod tests_basics {
             scope: TestScope,
         }
         impl <'a>Validator<'a,  TestTarget> for TestValidator {
-            type Strategy<'s> = TestStrategy where Self: 's;
-            type Proof<'s>  = TestProof where Self: 's;
-            type Scope<'s>  = TestScope where Self: 's;
 
-            fn validate<'s>(&self, scope: &Self::Scope<'s>, target: &TestTarget) -> bool {
+            type Scope  = TestScope;
+
+            fn validate<'s>(&self, scope: &Self::Scope, target: &TestTarget) -> bool {
                 let proof = scope.proof();
                 scope.validate(proof, target)
             }
@@ -187,43 +190,6 @@ mod tests_basics {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use crate::validation::strategy::*;
-
-    // #[test]
-    // fn test_number_validation() {
-    //     // Create a set of numbers to validate
-    //     let numbers = vec![2, 4, 6, 8, 10];
-
-    //     // Create a proof that validates whether a number is positive
-    //     let positive_proof = GenericProof::new(|&n: &i32| n > 0);
-
-    //     // Create a proof that validates whether a number is even
-    //     let even_proof = GenericProof::new(|&n: &i32| n % 2 == 0);
-
-    //     // Create a strategy that uses both proofs
-    //     let strategy = GenericStrategy::new(vec![positive_proof, even_proof]);
-
-    //     // Validate the numbers using the strategy
-    //     for &number in &numbers {
-    //         assert!(strategy.validate(&number));
-    //     }
-
-    //     // Save the strategy to a binary tree
-    //     let tree = strategy.to_binary_tree();
-
-    //     // Load a new strategy from the binary tree
-    //     let loaded_strategy = GenericStrategy::from_binary_tree(tree);
-
-    //     // Validate the numbers using the loaded strategy
-    //     for &number in &numbers {
-    //         assert!(loaded_strategy.validate(&number));
-    //     }
-    // }
-}
 
 
 

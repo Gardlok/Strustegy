@@ -1,4 +1,14 @@
 
+use std::marker::PhantomData;
+use crate::validation::Validator;
+use crate::validation::error::ValidationError;
+use crate::validation::Proof;
+use crate::validation::Scope;
+
+
+use crate::validation::strategy::Strategy;
+
+
 //
 pub struct GenericValidator<'a, T, S: for<'s> Scope<'s, T>> {
     pub scope: S,
