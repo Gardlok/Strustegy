@@ -1,243 +1,100 @@
 
-// use std::marker::PhantomData;
-use std::any::{Any, TypeId};
-use std::error::Error;
-
-
-
 
 #[cfg(test)]
-mod tests_orig {
+mod tests_basic {
     use super::*;
 
-
-    use crate::validation::strategy::Strategy;
+    use crate::validation::strategy::StrategyPlan;
     use crate::validation::strategy::Target;
-    use crate::validation::strategies::GenericProof;
     use crate::validation::Scope;
     use crate::validation::Validator;
     use crate::validation::Proof;
     use std::marker::PhantomData;
 
-    struct TestTarget {
-        value: bool,
+    // Define a target
+    pub struct MyTarget {
+        value: i32,
     }
 
-    impl<'a> Target<'a> for TestTarget {
-        type Value = bool;
+    impl<'a> Target<'a> for MyTarget {
+        type Value = i32;
         fn value(&'a self) -> Self::Value {
             self.value
         }
     }
+    // Define a proof
+    struct MyProof {
+        strategy: Box<dyn for<'a> Fn(&'a MyTarget) -> bool>,
+    }
 
-    struct TestStrategy;
-
-    impl Strategy<TestTarget> for TestStrategy {
-        fn apply(&self, target: &TestTarget) -> bool {
-            target.value()
+    impl<'a> Proof<'_, MyTarget> for MyProof {
+        type Strategy = Box<dyn for<'b> Fn(&'b MyTarget) -> bool>;
+        fn validate(&self, strategy: &Self::Strategy, target: &MyTarget) -> bool {
+            strategy(target)
         }
     }
 
-    struct TestProof<'a> {
-        strategy: TestStrategy,
-        _phantom: PhantomData<&'a TestTarget>,
+    // Define a scope
+    struct MyScope {
+        proof: MyProof,
     }
 
-    impl<'a> Proof<'a, TestTarget> for TestProof<'a> {
-        type Strategy = TestStrategy;
-        fn validate(&'a self, strategy: &Self::Strategy, target: &TestTarget) -> bool {
-            strategy.apply(target)
+    impl<'a> Scope<'a, MyTarget> for MyScope {
+        type Proof = MyProof;
+        fn proof<'s>(&'s self) -> &'s Self::Proof {
+            &self.proof
+        }
+        fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &MyTarget) -> bool {
+            proof.validate(&proof.strategy, target)
         }
     }
 
+    // Define a validator
+    struct MyValidator {
+        scope: MyScope,
+    }
+
+    impl<'a> Validator<'_, MyTarget> for MyValidator {
+        type Scope = MyScope;
+
+        fn validate(&self, scope: &Self::Scope, target: &MyTarget) -> bool {
+            scope.validate(&scope.proof, target)
+        }
+    }
+
+    // Now, let's use our custom validator to validate a target
     #[test]
-    fn test_proof() {
-        let target = TestTarget { value: true };
-        let proof = TestProof {
-            strategy: TestStrategy,
+    fn test_my_validator() {
+        let target = MyTarget { value: 5 };
+        let strategy = Box::new(|target: &MyTarget| target.value() > 0);
+        let proof = MyProof { strategy: strategy };
+        let scope = MyScope { proof: proof };
+        let validator = MyValidator { scope: scope };
+
+        assert!(validator.validate(&validator.scope, &target));
+
+        // Define your strategy function
+        let strategy_fn = |target: &MyTarget| -> bool {
+            target.value() > 0
+        };
+
+        // Create a StrategyPlan
+        let strategy_plan = StrategyPlan {
+            strategy_fn,
             _phantom: PhantomData,
         };
-        assert!(proof.validate(&proof.strategy, &target));
+
+        // Now you can use strategy_plan as a strategy
+        let target = MyTarget { value: 10 };
+        let is_valid = (strategy_plan.strategy_fn)(&target);
+        assert!(is_valid);
+
+
     }
 
-   
+
+
+
+
 }
 
-#[cfg(test)]
-mod tests_basics {
-
-
-
-    // use crate::validation::logic::Scope;
-   
-    use crate::validation::Proof;
-    use crate::validation::strategy::Strategy;
-    use crate::validation::strategy::Target;
-    use crate::validation::Scope;
-    use crate::validation::Validator;
-
-
-    
-    #[test]
-    fn test_generic_validator() {
-        // Create a target
-        struct TestTarget {
-            value: i32,
-        }
-        impl Target<'_> for TestTarget {
-            type Value = i32;
-            fn value(&self) -> Self::Value {
-                self.value
-            }
-        }
-        let target = TestTarget { value: 42 };
-
-        // Create a strategy
-        struct TestStrategy;
-        impl Strategy<TestTarget> for TestStrategy {
-            fn apply(&self, target: &TestTarget) -> bool {
-                target.value == 42
-            }
-        }
-
-        // Create a proof
-        struct TestProof {
-            strategy: TestStrategy,
-        }
-        impl Proof<'_, TestTarget> for TestProof {
-            type Strategy = TestStrategy;
-            fn validate(&self, strategy: &Self::Strategy, target: &TestTarget) -> bool {
-                strategy.apply(target)
-            }
-        }
-
-        // Create a scope
-        struct TestScope {
-            proof: TestProof,
-        }
-        impl Scope<'_, TestTarget> for TestScope {
-            type Proof = TestProof;
-            fn proof<'s>(&'s self) -> &'s Self::Proof {
-                &self.proof
-            }
-            fn validate<'s>(&'s self, proof: &'s Self::Proof, target: &TestTarget) -> bool {
-                proof.validate(&self.proof.strategy, target)
-            }
-        }
-
-        // Create a validator
-        struct TestValidator {
-            scope: TestScope,
-        }
-        impl <'a>Validator<'a,  TestTarget> for TestValidator {
-
-            type Scope  = TestScope;
-
-            fn validate<'s>(&self, scope: &Self::Scope, target: &TestTarget) -> bool {
-                let proof = scope.proof();
-                scope.validate(proof, target)
-            }
-
-
-        }
-
-        // Create a generic validator
-        let generic_validator = TestValidator {
-            scope: TestScope {
-                proof: TestProof {
-                    strategy: TestStrategy,
-                },
-            },
-        };
-
-        // Create a generic strategy
-        let generic_strategy = TestStrategy;
-
-        // Create a generic proof
-        let generic_proof = TestProof {
-            strategy: TestStrategy,
-        };
-
-        // Create a generic scope
-        let generic_scope = TestScope {
-            proof: TestProof {
-                strategy: TestStrategy,
-            },
-        };
-        
-
-        // Test the generic validator
-        assert!(generic_validator.validate(&generic_scope, &target));
-
-        // Test the generic strategy
-        assert!(generic_strategy.apply(&target));
-
-        // Test the generic scope
-        assert!(generic_scope.validate(&generic_proof, &target));
-
-        // Test the generic proof
-        assert!(generic_proof.validate(&TestStrategy, &target));
-
-        // Test the concrete validator
-        let validator = TestValidator {
-            scope: TestScope {
-                proof: TestProof {
-                    strategy: TestStrategy,
-                },
-            },
-        };
-        assert!(validator.validate(&validator.scope, &target));
-    }
-}
-
-
-
-
-
-
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use rand::Rng;
-
-//     use crate::validation::logic::*;
-//     use crate::validation::proof::*;
-//     use crate::validation::strategy::*;
-//     use crate::validation::validator::*;
-
-//     struct TestFunctor<'a, T: 'a> {
-//         value: Option<T>,
-//         phantom: std::marker::PhantomData<&'a T>,
-//     }
-
-//     impl<'a, T> Functor<'a> for TestFunctor<'a, T> {
-//         type Raw = T;
-//         type Target<'s, B> = TestFunctor<'s, B>;
-
-//         fn map<'s, F, B>(self, f: F) -> Self::Target<'s, B>
-//         where
-//             F: FnMut(Self::Raw) -> B,
-//         {
-//             TestFunctor {
-//                 value: self.value.map(f),
-//                 phantom: std::marker::PhantomData,
-//             }
-//         }
-//     }
-
-//     #[test]
-//     fn test_functor() {
-//         let mut rng = rand::thread_rng();
-
-//         for _ in 0..100 {
-//             let x: i32 = rng.gen();
-//             let functor = TestFunctor {
-//                 value: Some(x),
-//                 phantom: std::marker::PhantomData,
-//             };
-//             let result = functor.map(|x| x.to_string());
-//             assert_eq!(result.value, Some(x.to_string()));
-//         }
-//     }
-// }
