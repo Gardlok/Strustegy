@@ -2,11 +2,11 @@
 
 use std::marker::PhantomData;
 
+use crate::validation::strategy::StrategyFn;
 use crate::validation::strategy::Strategy;
 use crate::validation::strategy::Scope;
 use crate::validation::strategy::Proof;
-use crate::validation::strategy::Target;
-use crate::validation::strategy::Validator;
+use crate::validation::validity::*; 
 
 use crate::validation::error::ValidationError;
 
@@ -27,12 +27,12 @@ pub struct GenericScope<'a, T, P: for<'s> Proof<'s, T>> {
     _phantom: PhantomData<&'a T>,
 }
 
-pub struct GenericProof<'a, T, S: Strategy<T>> {  
+pub struct GenericProof<'a, T, S: StrategyFn<T>> {  
     pub strategy: S,                              
     _phantom: PhantomData<&'a T>,                 
 }
 
-impl <'a, T, S: Strategy<T>> GenericProof<'a, T, S> {
+impl <'a, T, S: StrategyFn<T>> GenericProof<'a, T, S> {
     pub fn new(strategy: S) -> Self {
         Self {
             strategy,
@@ -43,6 +43,7 @@ impl <'a, T, S: Strategy<T>> GenericProof<'a, T, S> {
 
 impl<'a, T, P: for<'s> Proof<'s, T>> GenericStrategy<'a, T, P> {
     pub fn new(proof: P) -> Self {
+        
         Self {
             proof,
             _phantom: PhantomData,
@@ -68,7 +69,7 @@ impl<'a, T, S: for<'s> Scope<'s, T>> GenericValidator<'a, T, S> {
     }
 }
 
-impl<'a, T, P: for<'s> Proof<'s, T, Strategy = P>> Scope<'a, T> for GenericScope<'a, T, P> {
+impl<'a, T, P: for<'s> Proof<'s, T, StrategyFn = P>> Scope<'a, T> for GenericScope<'a, T, P> {
     type Proof = P;
     fn proof<'s>(&'s self) -> &'s Self::Proof {
         &self.proof
@@ -78,7 +79,7 @@ impl<'a, T, P: for<'s> Proof<'s, T, Strategy = P>> Scope<'a, T> for GenericScope
     }
 }
 
-impl<'a, T, S: for<'s> Scope<'s, T>> Validator<'a, T> for GenericValidator<'a, T, S> {
+impl<'a, T, S: for<'s> Scope<'s, T> + 'a> Validator<'a, T> for GenericValidator<'a, T, S> {
     type Scope = S;
     fn validate(&'a self, scope: &Self::Scope, target: &T) -> bool {  // This is the same as the generic scope validate
         let proof = scope.proof();
@@ -86,7 +87,7 @@ impl<'a, T, S: for<'s> Scope<'s, T>> Validator<'a, T> for GenericValidator<'a, T
     }
 }
 
-impl<'a, T, P: for<'s> Proof<'s, T, Strategy = P>> Scope<'a, T> for GenericStrategy<'a, T, P> {
+impl<'a, T, P: for<'s> Proof<'s, T, StrategyFn = P>> Scope<'a, T> for GenericStrategy<'a, T, P> {
     type Proof = P;
     fn proof<'s>(&'s self) -> &'s Self::Proof {
         &self.proof
@@ -95,6 +96,7 @@ impl<'a, T, P: for<'s> Proof<'s, T, Strategy = P>> Scope<'a, T> for GenericStrat
         proof.validate(&self.proof, target)
     }
 }
+
 
 
 #[cfg(test)]
@@ -105,38 +107,65 @@ mod tests {
         value: i32,
     }
 
-    impl<'a> Target<'a> for TestTarget {
-        type Value = i32;
-        fn value(&'a self) -> Self::Value {
+    impl TestTarget {
+        fn value(&self) -> i32 {
             self.value
         }
     }
 
+    struct TestProof<F: Fn(&TestTarget) -> bool> {
+        strategy: F,
+    }
+
+    impl<'a, F: Fn(&TestTarget) -> bool> Proof<'a, TestTarget> for TestProof<F> {
+        type StrategyFn = F;
+
+        fn validate(&'a self, _strategy: &Self::StrategyFn, target: &TestTarget) -> bool {
+            (self.strategy)(target)
+        }
+    }
+
     #[test]
-    fn test_generic_validator() {
+    fn test_generic_strategy() {
         // Define a strategy that checks if the target's value is positive
         let strategy = |target: &TestTarget| target.value() > 0;
 
-        // Create a GenericProof with the strategy
-        let proof = GenericProof::new(strategy);
+        // Create a TestProof with the strategy
+        let proof = TestProof { strategy };
 
-        // Create a GenericScope with the proof
-        let scope = GenericScope::new(proof);
-
-        // Create a GenericValidator with the scope
-        let validator = GenericValidator::new(scope);
+        // Create a GenericStrategy with the proof
+        let strategy = GenericStrategy::new(proof);
 
         // Create a target with a positive value
         let target = TestTarget { value: 1 };
 
         // Validate the target
-        let result = validator.validate(&validator.scope, &target);
+        let result = strategy.proof.validate(&strategy.proof.strategy, &target);
 
         // Check that the result is true
         assert!(result);
     }
+
+
+    #[test]
+    fn test_more() {
+
+        let strategy = |target: &TestTarget| target.value() > 0;
+
+        let proof = TestProof { strategy };
+
+        let strategy = GenericStrategy::new(proof);
+
+        let target = TestTarget { value: 1 };
+
+        let result = strategy.proof.validate(&strategy.proof.strategy, &target);
+
+        assert!(result);
+
+    }
+
+
+
+
+
 }
-
-
-
-

@@ -5,7 +5,7 @@ use std::any::{Any, TypeId};
 use std::fmt;
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ValidationError {
     StrategyError {
         strategy_type_id: TypeId,
@@ -55,3 +55,44 @@ impl fmt::Display for ValidationError {
         write!(f, "Validation error: {}", self.get_message())
     }
 }
+
+impl std::error::Error for ValidationError {}
+
+impl From<String> for ValidationError {
+    fn from(message: String) -> Self {
+        ValidationError::new(message)
+    }
+}
+
+impl From<&str> for ValidationError {
+    fn from(message: &str) -> Self {
+        ValidationError::new(message.to_string())
+    }
+}
+
+impl From<ValidationError> for Vec<ValidationError> {
+    fn from(error: ValidationError) -> Self {
+        vec![error]
+    }
+}
+
+impl From<Vec<ValidationError>> for ValidationError {
+    fn from(errors: Vec<ValidationError>) -> Self {
+        ValidationError::multiple_errors(errors)
+    }
+}
+
+impl From<ValidationError> for Box<dyn Any + Send + Sync> {
+    fn from(error: ValidationError) -> Self {
+        Box::new(error)
+    }
+}
+
+impl From<Box<dyn Any + Send + Sync>> for ValidationError {
+    fn from(error: Box<dyn Any + Send + Sync>) -> Self {
+        *error.downcast::<ValidationError>().unwrap()
+    }
+}
+
+
+
