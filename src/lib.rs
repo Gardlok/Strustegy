@@ -1,6 +1,4 @@
 
-
-
 use std::any::{Any, TypeId, type_name};
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -308,7 +306,6 @@ impl<'a, T, F> StrategyFnWithContext<'a, T> for StandardStrategyFn<F>
     where F: Fn(&T, &HashMap<&'a str, &'a dyn Any>) -> bool,
     {
     type Params = HashMap<&'a str, &'a dyn Any>;
-
     fn call(&self, target: &T, params: &Self::Params) -> bool {
         (self.0)(target, params)
     }
@@ -325,7 +322,7 @@ impl<'a, T> StrategyWithContext<'a, T> for StandardStrategy {
 }
 
 
-
+// A function that uses s
 
 
 

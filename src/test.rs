@@ -102,7 +102,7 @@ mod tests {
 mod tests_with_context {
     use super::*;
 
-    use crate::Operation;
+
     use crate::StrategyObject;
     use crate::StrategyFnWithContext;
     use crate::StrategyWithContext;
