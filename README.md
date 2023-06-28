@@ -1,33 +1,19 @@
 # Strustegy
 Validation library for Rust with emphasis on the Strategy pattern
 
+## Features
+###Flexible Validations: Define your own validation strategies and chain them together to create complex validation routines.
+###Generic Associated Types (GATs): Emulate higher-kinded types (HKTs) and create generic validations that can be applied to any type.
+###Composite Validations: Easily create composite validations by chaining together multiple strategies.
+###Partial Validations: Perform partial validations and decide on the next steps based on the results.
+
+
+
 ## Disclaimer
 This library is still in early development. Feel free to try it out and give feedback.
 
 
 
-## Usage
-```rust
-use strustegy::Strustegy;
-
-#[derive(Debug, PartialEq)]
-enum Error {
-    Invalid,
-}
-
-#[derive(Debug, PartialEq)]
-enum Value {
-    Valid,
-}
-
-fn main() {
-    let mut strustegy = Strustegy::new();
-
-    strustegy.add_validator(|_| Ok(Value::Valid));
-
-    assert_eq!(strustegy.validate(()), Ok(Value::Valid));
-}
-```
 
 
 

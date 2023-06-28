@@ -9,12 +9,11 @@ edition = "2021"
 criterion = "*"
 crossbeam = "0.8.2"
 crossbeam-skiplist = "0.1.1"
-dashmap = "5.4.0"
 quote = "1.0.28"
 rand = "0.8.5"
 regex = "1.8.4"
 syn = "2.0.18"
-
+rhai = "1.15.1"
 
 [dev-dependencies]
 criterion = "*"
