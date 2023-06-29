@@ -82,6 +82,8 @@ impl<T> Bounds<T> for Box<T> {}
 pub trait Sealed {}
 impl<T> Sealed for T {} 
 
+// Target Trait
+//
 pub trait Target<'a, T> {
     type Phantom<'p>: PhantomLifetime<'p>;
     fn target(&'a self) -> &'a T;
@@ -91,7 +93,7 @@ pub trait TargetLifetime<'a, T> {
     type Phantom<'p>: PhantomLifetime<'p>;
 }
 //
-pub trait TargetEnum<'a, T> {
+pub trait TargetEnum<'a, T> { 
     type Phantom<'p>: PhantomLifetime<'p>;
     fn target(&'a self) -> &'a dyn Any;
 }
@@ -103,15 +105,22 @@ impl<'a, T> TargetObject<'a, T> {
     }
 }
 
-// Strategy Trait
+
+// Strategy Trait 
 //
 pub trait Strategy<'a, T> {
     type Life: StrategyLifetime<'a, T>;
     fn strategy(&'a self) -> &'a dyn Fn(&'a T) -> bool;
 }
-// Strategy Trait 
+//
+pub trait StrategyFnWithContext<'a, T> {
+    type Params: 'a;
+    fn call(&self, target: &T, params: &Self::Params) -> bool;
+}
+// Strategy Lifetime Trait
 //
 pub trait StrategyLifetime<'a, T> {
+    // Ensure the lifetime of the strategy is the same as the lifetime of the caller.
     type Phantom<'p>: PhantomLifetime<'p>;
 }
 // Strategy control object for contexting
@@ -122,22 +131,33 @@ impl<'a, T> StrategyObject<'a, T> {
         Self(PhantomData)
     }
 }
-
-pub trait StrategyFnWithContext<'a, T> {
-    type Params: 'a;
-    fn call(&self, target: &T, params: &Self::Params) -> bool;
-}
+//
 pub trait StrategyWithContext<'a, T> {
     type Params: 'a;
     fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>>;
 }
+impl<'a, T> StrategyWithContext<'a, T> for () {
+    // When creating a strategy object, the caller can specify a strategy object that is empty.
+    type Params = (); 
+    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
+        vec![]
+    }
+}
 
-// Operation (root context object)
+
+
+
+// Operation Struct and Implementation
 //
-pub struct Operation<'a, T> {
+pub struct Operation<'a, T, S = ()>
+where
+    S: StrategyWithContext<'a, T>,
+{
     target: &'a T,
     strategies: Vec<&'a dyn Fn(&'a T) -> bool>,
     parameters: HashMap<&'a str, &'a dyn Any>,
+    strategy: Option<S>,
+    strategy_parameters: Option<S::Params>,
 }
 impl<'a, T> Operation<'a, T> {
     pub fn new(target: &'a T) -> Self {
@@ -145,25 +165,52 @@ impl<'a, T> Operation<'a, T> {
             target,
             strategies: Vec::new(),
             parameters: HashMap::new(),
+            strategy: None,
+            strategy_parameters: None,
         }
     }
-}
-impl<'a, T> Operation<'a, T> {
+
     pub fn strategy(&'a mut self, strategy: &'a dyn Fn(&'a T) -> bool) -> &'a mut Self {
         self.strategies.push(strategy);
         self
     }
+
     pub fn parameter(&'a mut self, key: &'a str, value: &'a dyn Any) -> &'a mut Self {
         self.parameters.insert(key, value);
         self
     }
+
     pub fn execute(&'a self) -> bool {
         for strategy in &self.strategies {
             if !strategy(self.target) {
                 return false;
             }
         }
+
+        if let Some(strategy) = &self.strategy {
+            for strategy_fn in strategy.strategies() {
+                if !strategy_fn.call(self.target, self.strategy_parameters.as_ref().unwrap()) {
+                    return false;
+                }
+            }
+        }
+
         true
+    }
+}
+
+impl<'a, T, S> Operation<'a, T, S>
+where
+    S: StrategyWithContext<'a, T>,
+{
+    pub fn with_context(target: &'a T, strategy: S, parameters: S::Params) -> Self {
+        Self {
+            target,
+            strategies: Vec::new(),
+            parameters: HashMap::new(),
+            strategy: Some(strategy),
+            strategy_parameters: Some(parameters),
+        }
     }
 }
 pub struct OperationWithContext<'a, T, S>
@@ -192,8 +239,9 @@ where
     }
 }
 
-// Lending Iterator
-//                     
+
+// // Lending Iterator
+// //                     
 pub trait LendingIterator<'a> {
     type Item;
 
@@ -246,7 +294,7 @@ where
 {
     type Item;
     type Gats: 'a + for<'b> Gat<'b, Item = Self::Item>;
-    fn gats(&'a self) -> Self::Gats;
+    fn gats(&'a self) -> Self::Gats;  
     fn map<'b, G>(self, f: G) -> Map<Self, G> 
     where
         G: FnMut(&mut Self::Item),
@@ -288,10 +336,22 @@ impl<'a> ParameterObject<'a> {
         }
     }
 }
+impl<'a> ParameterObject<'a> {
+    pub fn parameter(&'a mut self, key: &'a str, value: &'a dyn Any) -> &'a mut Self {
+        self.parameters.insert(key, value);
+        self
+    }
+}
+impl<'a> ParameterObject<'a> {
+    pub fn get(&self, key: &'a str) -> Option<&&'a dyn Any> {
+        self.parameters.get(key)
+    }
+}
+
 
 /////////////// Strategy Prototypes ///////////////
 struct StandardStrategy;
-impl StandardStrategy {
+impl StandardStrategy { 
     fn execute(&self, target: &i32, parameters: &HashMap<&str, &dyn Any>) -> bool {   
         for strategy in self.strategies() {
             if !strategy.call(target, parameters) {
@@ -322,7 +382,7 @@ impl<'a, T> StrategyWithContext<'a, T> for StandardStrategy {
 }
 
 
-// A function that uses s
+
 
 
 

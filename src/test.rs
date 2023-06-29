@@ -87,47 +87,18 @@ mod tests {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod tests_with_context {
-    use super::*;
 
 
-    use crate::StrategyObject;
     use crate::StrategyFnWithContext;
     use crate::StrategyWithContext;
     use crate::OperationWithContext;
-    use crate::TargetObject;
-    use crate::ParameterObject;
 
-    use std::any::Any;
+    use std::any::{Any, TypeId};
     use std::collections::HashMap;
 
-
-
-
     struct TestStrategy;
-    // for Operation execute
-    impl TestStrategy {
-        fn execute(&self, target: &i32, parameters: &HashMap<&str, &dyn Any>) -> bool {
-            for strategy in self.strategies() {
-                if !strategy.call(target, parameters) {
-                    return false;
-                }
-            }
-            true
-        }
-    }
     struct TestStrategyFn<F>(F);
     impl<'a, T, F> StrategyFnWithContext<'a, T> for TestStrategyFn<F>
     where
@@ -145,7 +116,8 @@ mod tests_with_context {
         fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
             vec![
                 Box::new(TestStrategyFn(|target: &T, params: &Self::Params| {
-                    println!("params: {:?}", params);
+                    assert_eq!(params.get("test_param").unwrap().downcast_ref::<&str>().unwrap(), &"test_value");
+                    
                     true
                 })),
                 Box::new(TestStrategyFn(|target: &T, params: &Self::Params| { true })),
@@ -167,3 +139,67 @@ mod tests_with_context {
 
 }
 
+
+// Integration Tests
+//
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use std::any::Any;
+
+    use crate::Operation;
+    use crate::StrategyObject;
+    use crate::TargetObject;
+    use crate::ParameterObject;
+
+    #[test]
+    fn test_operation1() {
+        let mut binding = Operation::new(&1);
+        let operation = binding
+            .strategy(&|target| *target == 1)
+            .strategy(&|target| *target == 2)
+            .strategy(&|target| *target == 3)
+            .parameter("foo", &"bar")
+            .parameter("bar", &"foo");
+        assert_eq!(operation.execute(), false);
+    }
+
+    #[test]
+    fn test_operation2() {
+        let mut binding = Operation::new(&1);
+        let operation = binding
+            .strategy(&|target| *target == 1)
+            .strategy(&|target| *target == 2)
+            .strategy(&|target| *target == 3)
+            .parameter("foo", &"bar")
+            .parameter("bar", &"foo");
+        assert_eq!(operation.execute(), false);
+    }
+
+    #[test]
+    fn test_operation3() {
+        let mut binding = Operation::new(&1);
+        let operation = binding
+            .strategy(&|target| *target == 1)
+            .strategy(&|target| *target == 2)
+            .strategy(&|target| *target == 3)
+            .parameter("foo", &"bar")
+            .parameter("bar", &"foo");
+        assert_eq!(operation.execute(), false);
+    }
+
+    // true
+    #[test]
+    fn test_operation4() {
+        let mut binding = Operation::new(&1);
+        let operation = binding
+            .strategy(&|target| *target == 1)
+            .strategy(&|target| *target == 1)
+            .strategy(&|target| *target == 1)
+            .parameter("foo", &"bar")
+            .parameter("bar", &"foo");
+        assert_eq!(operation.execute(), true);
+    }
+
+
+}
