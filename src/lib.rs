@@ -2,9 +2,12 @@
 use std::any::{Any, TypeId, type_name};
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::error::Error;
 use std::marker::PhantomData;
 
+mod inprogenitance;
+use crate::inprogenitance::Inprogenitance;
 
 
 mod test;
@@ -26,6 +29,7 @@ pub trait Gat<'a> {
 //
 pub trait Super<'a> {
     type Super: 'a;
+    
     fn super_(&'a self) -> &'a Self::Super;
 }
 // Scoping Object 
@@ -82,30 +86,6 @@ impl<T> Bounds<T> for Box<T> {}
 pub trait Sealed {}
 impl<T> Sealed for T {} 
 
-// Target Trait
-//
-pub trait Target<'a, T> {
-    type Phantom<'p>: PhantomLifetime<'p>;
-    fn target(&'a self) -> &'a T;
-}  
-//
-pub trait TargetLifetime<'a, T> {
-    type Phantom<'p>: PhantomLifetime<'p>;
-}
-//
-pub trait TargetEnum<'a, T> { 
-    type Phantom<'p>: PhantomLifetime<'p>;
-    fn target(&'a self) -> &'a dyn Any;
-}
-//
-pub struct TargetObject<'a, T>(PhantomData<&'a mut T>);
-impl<'a, T> TargetObject<'a, T> {
-    pub fn new() -> Self {
-        Self(PhantomData)
-    }
-}
-
-
 // Strategy Trait 
 //
 pub trait Strategy<'a, T> {
@@ -144,8 +124,25 @@ impl<'a, T> StrategyWithContext<'a, T> for () {
     }
 }
 
-
-
+// Op Error Struct and Implementation
+//
+#[derive(Debug)]
+pub struct OpError {
+    message: String,
+}
+impl OpError {
+    pub fn new(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+        }
+    }
+}
+impl std::fmt::Display for OpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "OpError: {}", self.message)
+    }
+}
+impl Error for OpError {}
 
 // Operation Struct and Implementation
 //
@@ -168,6 +165,12 @@ impl<'a, T> Operation<'a, T> {
             strategy: None,
             strategy_parameters: None,
         }
+    }
+
+    // Change Target
+    pub fn target(&'a mut self, target: &'a T) -> &'a mut Self {
+        self.target = target;
+        self
     }
 
     pub fn strategy(&'a mut self, strategy: &'a dyn Fn(&'a T) -> bool) -> &'a mut Self {
@@ -197,6 +200,12 @@ impl<'a, T> Operation<'a, T> {
 
         true
     }
+
+    pub fn add_target(&'a mut self, target: &'a T) -> &'a mut Self {
+        self.target = target;
+        self
+    }
+
 }
 
 impl<'a, T, S> Operation<'a, T, S>
@@ -226,7 +235,7 @@ where
     S: StrategyWithContext<'a, T>,
 {
     pub fn new(target: &'a T, strategy: S, parameters: S::Params) -> Self {
-        Self { target, strategy, parameters, }
+        Self { target, strategy, parameters }
     }
 
     pub fn execute(&self) -> bool {
@@ -352,11 +361,10 @@ impl<'a> ParameterObject<'a> {
 /////////////// Strategy Prototypes ///////////////
 struct StandardStrategy;
 impl StandardStrategy { 
+
     fn execute(&self, target: &i32, parameters: &HashMap<&str, &dyn Any>) -> bool {   
         for strategy in self.strategies() {
-            if !strategy.call(target, parameters) {
-                return false;
-            }
+            if !strategy.call(target, parameters) { return false; }
         }
         true
     }
@@ -372,7 +380,7 @@ impl<'a, T, F> StrategyFnWithContext<'a, T> for StandardStrategyFn<F>
 }
 impl<'a, T> StrategyWithContext<'a, T> for StandardStrategy {
     type Params = HashMap<&'a str, &'a dyn Any>;
-    // MVP
+   
     fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
         vec![
             Box::new(StandardStrategyFn(|target: &T, params: &Self::Params| { true })),
@@ -383,9 +391,66 @@ impl<'a, T> StrategyWithContext<'a, T> for StandardStrategy {
 
 
 
+//////////////// Operator ////////////////
 
 
 
 
+// Validator Operation
+//
+pub trait Validator<'a, 'r> {
+    type Target<'t>: Validate<'r>;
+    type Error: std::error::Error;
 
+    fn validate<'b: 'a, F, T>(&'b mut self, f: F) -> Result<T, Self::Error>
+    where F: FnOnce(&mut Self::Target<'r>) -> T;
+}
+//
+// pub trait Validate<'a> { fn validate<'b>(&'a self) -> Result<bool, OpError>; }
+pub trait Validate<'a> { fn validate<'b>(&'a self) -> bool; }
+//
+pub struct ValidatorOp<'a, I> { target: I, op: Operation<'a, I> }
+//
+impl<'a, I> ValidatorOp<'a, I> {
+    pub fn new(target: I, op: Operation<'a, I>) -> Self {
+        Self { target, op }
+    }
+}
+//
+impl<'a, I> Validator<'a, 'a> for ValidatorOp<'a, I>
+where
+    I: Validate<'a>,
+{
+    type Target<'t> = I;
+    type Error = OpError;
+
+    fn validate<'b: 'a, F, R>(&'b mut self, f: F) -> Result<R, Self::Error>
+        where F: FnOnce(&mut Self::Target<'a>) -> R,
+    {  
+            Ok( f(&mut self.target) )
+    }
+}
+
+
+impl<'a> Validate<'a> for i32 {
+    fn validate<'b>(&'a self) -> bool {
+        
+        if self % 2 == 0 { true } else { false }
+    
+    }
+}
+
+// Tests for ValidatorOp
+//
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_validator_operation_strategy() {
+        let mut validator = ValidatorOp::new(2, Operation::new(&2));
+        let result = validator.validate(|target| { target.validate() });
+        
+        assert_eq!(result.unwrap(), true);
+    }
+}
 
