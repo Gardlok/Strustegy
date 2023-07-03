@@ -203,3 +203,104 @@ mod integration_tests {
 
 
 }
+
+
+// Test code
+#[cfg(test)]
+mod inprogenitance_tests {
+    use std::marker::PhantomData;
+
+    use super::*;
+    use crate::inprogenitance::{Inprogenitance, MyInprogenitanceBuilder, Progeny, InprogenitanceImpl, MyInprogenitance};
+
+    #[test]
+    fn test_inprogenitance() {
+
+        // Progeny<'a, T: Clone, R: Clone>
+        let progeny: Progeny<'_, &i32, bool> = Progeny {
+            value: &&1,
+            progenitor: None,
+            operations: vec![],  
+            result: None,
+        };
+        
+
+        let inprogenitance: InprogenitanceImpl<'_, &i32, bool> = InprogenitanceImpl {
+            value: &1,
+            progeny: vec![progeny],
+            _marker: PhantomData,
+        };
+
+        // create an instance 
+        let mut my_inprogenitance: MyInprogenitance<'_, &i32, bool> = MyInprogenitance { inprogenitance };
+
+
+        assert_eq!(my_inprogenitance.progeny.pop(), 
+            Some(Progeny {
+                value: &&1,
+                progenitor:None,
+                operations:vec![],
+                result:None, 
+            }));
+
+
+        assert_eq!(my_inprogenitance.value, &1);
+
+    }
+
+    #[test]
+    fn test_2() {
+
+        // Create a new MyInprogenitance instance.
+        let mut my_inprogenitance = MyInprogenitanceBuilder::<&i32, bool>::new()
+            .value(&1)
+            .progeny(Progeny {
+                value: &&1,
+                progenitor: None,
+                operations: vec![],
+                result: None,
+            })
+            .build();
+
+
+
+
+
+
+
+
+        
+
+
+        
+
+    }
+
+    
+    #[test]
+    fn test_inprogenitance3<'a>() {
+        let mut my_inprogenitance: MyInprogenitance<'_, &i32, bool> = MyInprogenitance::new()
+            .value(&5)
+            .progeny(Progeny {
+                value: &&5,
+                progenitor: None,
+                operations: vec![],
+                result: None,
+            })
+            .build()
+            .unwrap();
+
+
+        // my_inprogenitance.progenate(Progeny {
+        //     value: &&6,
+        //     progenitor: None, 
+        //     operations: vec![],
+        //     result: None,
+        // });
+
+
+
+
+    }
+
+}

@@ -7,7 +7,7 @@ use std::error::Error;
 use std::marker::PhantomData;
 
 mod inprogenitance;
-use crate::inprogenitance::Inprogenitance;
+
 
 
 mod test;
@@ -123,6 +123,10 @@ impl<'a, T> StrategyWithContext<'a, T> for () {
         vec![]
     }
 }
+
+
+
+
 
 // Op Error Struct and Implementation
 //
@@ -249,8 +253,8 @@ where
 }
 
 
-// // Lending Iterator
-// //                     
+// Lending Iterator
+//                   
 pub trait LendingIterator<'a> {
     type Item;
 
@@ -358,36 +362,198 @@ impl<'a> ParameterObject<'a> {
 }
 
 
-/////////////// Strategy Prototypes ///////////////
-struct StandardStrategy;
-impl StandardStrategy { 
+/////////////// Strategic Ops
 
-    fn execute(&self, target: &i32, parameters: &HashMap<&str, &dyn Any>) -> bool {   
-        for strategy in self.strategies() {
-            if !strategy.call(target, parameters) { return false; }
-        }
-        true
-    }
-}
-struct StandardStrategyFn<F>(F);
-impl<'a, T, F> StrategyFnWithContext<'a, T> for StandardStrategyFn<F>
-    where F: Fn(&T, &HashMap<&'a str, &'a dyn Any>) -> bool,
-    {
-    type Params = HashMap<&'a str, &'a dyn Any>;
-    fn call(&self, target: &T, params: &Self::Params) -> bool {
-        (self.0)(target, params)
-    }
-}
-impl<'a, T> StrategyWithContext<'a, T> for StandardStrategy {
-    type Params = HashMap<&'a str, &'a dyn Any>;
+struct StrategyFn<'a, T>
+{ 
+    f: Box<dyn Fn(&T, &()) -> bool + 'a>,
    
-    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
-        vec![
-            Box::new(StandardStrategyFn(|target: &T, params: &Self::Params| { true })),
-            Box::new(StandardStrategyFn(|target: &T, params: &Self::Params| { true })),
-        ]
+ }
+ impl<'a, T> StrategyFnWithContext<'a, T> for StrategyFn<'a, T> {
+    type Params = ();
+
+    fn call(&self, target: &T, _params: &Self::Params) -> bool {
+        (self.f)(target, &())
     }
 }
+
+
+
+
+
+// StandardStrategy
+//
+pub struct StandardStrategy<'a, T, F>
+where
+    F: Fn(&'a T) -> bool,
+{
+    strategy: F,
+    phantom: PhantomData<&'a T>,
+}
+impl<'a, T, F> StandardStrategy<'a, T, F>
+where
+    F: Fn(&'a T) -> bool,
+{
+    pub fn new(strategy: F) -> Self {
+        Self {
+            strategy,
+            phantom: PhantomData,
+        }
+    }
+}
+
+
+pub struct CompositeStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T>,
+{
+    strategies: Vec<S>,
+    phantom: PhantomData<&'a T>,
+}
+impl<'a, T, S> StrategyWithContext<'a, T> for CompositeStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T>,
+{
+    type Params = S::Params;
+
+    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
+        let mut all_strategies = Vec::new();
+        for strategy in &self.strategies {
+            all_strategies.extend(strategy.strategies());
+        }
+        all_strategies
+    }
+}
+
+pub struct ConditionalStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T>,
+{
+    condition: Box<dyn Fn(&'a T) -> bool>,
+    true_strategy: S,
+    false_strategy: S,
+    target: &'a T,
+}
+impl<'a, T, S> StrategyWithContext<'a, T> for ConditionalStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T>,
+{
+    type Params = S::Params;
+
+    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
+        if (self.condition)(self.target) {
+            self.true_strategy.strategies()
+        } else {
+            self.false_strategy.strategies()
+        }
+    }
+}
+
+pub struct MapStrategy<'a, T, S, F>
+where
+    S: StrategyWithContext<'a, T>,
+    F: Fn(&'a T) -> S,
+{
+    strategy: S,
+    f: F,
+    target: &'a T,
+}
+impl<'a, T, S, F> StrategyWithContext<'a, T> for MapStrategy<'a, T, S, F>
+where
+    S: StrategyWithContext<'a, T>,
+    F: Fn(&'a T) -> S,
+{
+    type Params = S::Params;
+
+    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
+        (self.f)(self.target).strategies()
+    }
+}
+impl<'a, T, S, F> MapStrategy<'a, T, S, F>
+where
+    S: StrategyWithContext<'a, T>,
+    F: Fn(&'a T) -> S,
+{
+    pub fn new(strategy: S, f: F, target: &'a T) -> Self {
+        Self {
+            strategy,
+            f,
+            target,
+        }
+    }
+}
+impl<'a, T, S, F> MapStrategy<'a, T, S, F>
+where
+    S: StrategyWithContext<'a, T>,
+    F: Fn(&'a T) -> S,
+{
+    pub fn map<'b, G>(self, f: G) -> MapStrategy<'a, T, Self, G>
+    where
+        G: Fn(&'a T) -> Self,
+    {
+
+        let target = self.target.clone();  // 
+
+        MapStrategy::new(self, f, target)
+    }
+}
+
+// Tests for MapStrategy, ConditionalStrategy, CompositeStrategy
+//
+#[cfg(test)]
+mod tests_strats {
+    use super::*;
+
+
+
+    // #[test]
+    // fn test_composite_strategy() {
+    //     let composite_strategy = CompositeStrategy {
+    //         strategies: vec![TrueStrategy, FalseStrategy],
+    //         phantom: PhantomData,
+    //     };
+
+    //     let operation = Operation::with_context(&(), composite_strategy, ());
+    //     assert_eq!(operation.execute(), false);
+    // }
+
+    // #[test]
+    // fn test_conditional_strategy() {
+    //     let conditional_strategy = ConditionalStrategy {
+    //         condition: Box::new(|_| true),
+    //         true_strategy: TrueStrategy,
+    //         false_strategy: FalseStrategy,
+    //         target: &(),
+    //     };
+
+    //     let operation = Operation::with_context(&(), conditional_strategy, ());
+    //     assert_eq!(operation.execute(), true);
+    // }
+
+    // #[test]
+    // fn test_map_strategy() {
+    //     let map_strategy = MapStrategy::new(TrueStrategy, |target| {
+    //         if *target == 0 {
+    //             TrueStrategy
+    //         } else {
+    //             FalseStrategy
+    //         }
+    //     }, &0);
+
+    //     let operation = Operation::with_context(&0, map_strategy, ());
+    //     assert_eq!(operation.execute(), true);
+    // }
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
