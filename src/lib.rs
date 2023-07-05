@@ -1,9 +1,10 @@
 
 use std::any::{Any, TypeId, type_name};
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::error::Error;
+use std::hash::Hash;
 use std::marker::PhantomData;
 
 mod inprogenitance;
@@ -11,6 +12,8 @@ mod iterating;
 
 pub use iterating::*;
 
+
+use crate::inprogenitance::{Inprogenitance, Progeny, Progenation, Progenitor, InprogenitanceOps, MyInprogenitanceBuilder};
 
 mod test;
 
@@ -42,6 +45,7 @@ impl<'a, T> Scope<'a, T> {
         Self(PhantomData)
     }
 }
+
 // ParameterKey Trait (Variable) 
 //
 pub trait ParameterPair<'a, T, U> {
@@ -88,174 +92,6 @@ impl<T> Bounds<T> for Box<T> {}
 pub trait Sealed {}
 impl<T> Sealed for T {} 
 
-// Strategy Trait 
-//
-pub trait Strategy<'a, T> {
-    type Life: StrategyLifetime<'a, T>;
-    fn strategy(&'a self) -> &'a dyn Fn(&'a T) -> bool;
-}
-//
-pub trait StrategyFnWithContext<'a, T> {
-    type Params: 'a;
-    fn call(&self, target: &T, params: &Self::Params) -> bool;
-}
-// Strategy Lifetime Trait
-//
-pub trait StrategyLifetime<'a, T> {
-    // Ensure the lifetime of the strategy is the same as the lifetime of the caller.
-    type Phantom<'p>: PhantomLifetime<'p>;
-}
-// Strategy control object for contexting
-//
-pub struct StrategyObject<'a, T>(PhantomData<&'a mut T>);
-impl<'a, T> StrategyObject<'a, T> {
-    pub fn new() -> Self {
-        Self(PhantomData)
-    }
-}
-//
-pub trait StrategyWithContext<'a, T> {
-    type Params: 'a;
-    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>>;
-}
-impl<'a, T> StrategyWithContext<'a, T> for () {
-    // When creating a strategy object, the caller can specify a strategy object that is empty.
-    type Params = (); 
-    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
-        vec![]
-    }
-}
-
-
-
-
-
-// Op Error Struct and Implementation
-//
-#[derive(Debug)]
-pub struct OpError {
-    message: String,
-}
-impl OpError {
-    pub fn new(message: &str) -> Self {
-        Self {
-            message: message.to_string(),
-        }
-    }
-}
-impl std::fmt::Display for OpError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "OpError: {}", self.message)
-    }
-}
-impl Error for OpError {}
-
-// Operation Struct and Implementation
-//
-pub struct Operation<'a, T, S = ()>
-where
-    S: StrategyWithContext<'a, T>,
-{
-    target: &'a T,
-    strategies: Vec<&'a dyn Fn(&'a T) -> bool>,
-    parameters: HashMap<&'a str, &'a dyn Any>,
-    strategy: Option<S>,
-    strategy_parameters: Option<S::Params>,
-}
-impl<'a, T> Operation<'a, T> {
-    pub fn new(target: &'a T) -> Self {
-        Self {
-            target,
-            strategies: Vec::new(),
-            parameters: HashMap::new(),
-            strategy: None,
-            strategy_parameters: None,
-        }
-    }
-
-    // Change Target
-    pub fn target(&'a mut self, target: &'a T) -> &'a mut Self {
-        self.target = target;
-        self
-    }
-
-    pub fn strategy(&'a mut self, strategy: &'a dyn Fn(&'a T) -> bool) -> &'a mut Self {
-        self.strategies.push(strategy);
-        self
-    }
-
-    pub fn parameter(&'a mut self, key: &'a str, value: &'a dyn Any) -> &'a mut Self {
-        self.parameters.insert(key, value);
-        self
-    }
-
-    pub fn execute(&'a self) -> bool {
-        for strategy in &self.strategies {
-            if !strategy(self.target) {
-                return false;
-            }
-        }
-
-        if let Some(strategy) = &self.strategy {
-            for strategy_fn in strategy.strategies() {
-                if !strategy_fn.call(self.target, self.strategy_parameters.as_ref().unwrap()) {
-                    return false;
-                }
-            }
-        }
-
-        true
-    }
-
-    pub fn add_target(&'a mut self, target: &'a T) -> &'a mut Self {
-        self.target = target;
-        self
-    }
-
-}
-
-impl<'a, T, S> Operation<'a, T, S>
-where
-    S: StrategyWithContext<'a, T>,
-{
-    pub fn with_context(target: &'a T, strategy: S, parameters: S::Params) -> Self {
-        Self {
-            target,
-            strategies: Vec::new(),
-            parameters: HashMap::new(),
-            strategy: Some(strategy),
-            strategy_parameters: Some(parameters),
-        }
-    }
-}
-pub struct OperationWithContext<'a, T, S>
-where
-    S: StrategyWithContext<'a, T>,
-{
-    pub target: &'a T,
-    pub strategy: S,
-    pub parameters: S::Params,
-}
-impl<'a, T, S> OperationWithContext<'a, T, S>
-where
-    S: StrategyWithContext<'a, T>,
-{
-    pub fn new(target: &'a T, strategy: S, parameters: S::Params) -> Self {
-        Self { target, strategy, parameters }
-    }
-
-    pub fn execute(&self) -> bool {
-        for strategy_fn in self.strategy.strategies() {
-            if !strategy_fn.call(self.target, &self.parameters) {
-                return false;
-            }
-        }
-        true
-    }
-}
-
-
-
 // ParameterObject
 //
 pub struct ParameterObject<'a> {
@@ -281,26 +117,104 @@ impl<'a> ParameterObject<'a> {
 }
 
 
-/////////////// Strategic Ops
+// Op Error Struct and Implementation
+//
+#[derive(Debug)]
+pub struct OpError {
+    message: String,
+}
+impl OpError {
+    pub fn new(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+        }
+    }
+}
+impl std::fmt::Display for OpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "OpError: {}", self.message)
+    }
+}
 
-struct StrategyFn<'a, T>
-{ 
-    f: Box<dyn Fn(&T, &()) -> bool + 'a>,
-   
- }
- impl<'a, T> StrategyFnWithContext<'a, T> for StrategyFn<'a, T> {
-    type Params = ();
+impl Error for OpError {}
+// Strategy Trait 
+//
+pub trait Strategy<'a, T> {
+    type Life: StrategyLifetime<'a, T>;
+    fn strategy(&'a self) -> &'a dyn Fn(&'a T) -> bool;
+}
+// StrategyFn Trait
+//
+pub trait StrategyFnWithContext<'a, T>
+where
+    T: Clone,
+{
+    type Params: 'a;
+    fn call(&self, target: &'a T, params: &Self::Params) -> bool;
+}
+// Strategy Lifetime Trait
+//
+pub trait StrategyLifetime<'a, T> {
+    // Ensure the lifetime of the strategy is the same as the lifetime of the caller.
+    type Phantom<'p>: PhantomLifetime<'p>;
+}
+// Strategy control object for contexting
+//
+pub struct StrategyObject<'a, T>(PhantomData<&'a mut T>);
+impl<'a, T> StrategyObject<'a, T> {
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
+}
 
-    fn call(&self, target: &T, _params: &Self::Params) -> bool {
-        (self.f)(target, &())
+// Inprogenitance Operation Struct and Implementation
+//
+pub struct InprogenitanceOperation<'a, T: 'a + Clone, R: Clone, U: StrategyWithContext<'a, T>> {
+    progenies: Vec<Progeny<'a, T, R>>,
+    strategy: U,
+}
+impl<'a, T: 'a + Clone, R: Clone, U: StrategyWithContext<'a, T>> InprogenitanceOperation<'a, T, R, U> {
+    pub fn new(strategy: U) -> Self {
+        Self {
+            progenies: Vec::new(),
+            strategy,
+        }
+    }
+}
+impl<'a, T: 'a + Clone, R: Clone, U: StrategyWithContext<'a, T>> InprogenitanceOperation<'a, T, R, U> {
+    fn progeny(&mut self, progeny: Progeny<'a, T, R>) -> &mut Self {
+        self.progenies.push(progeny);
+        self
+    }
+    fn progenies(&mut self, progenies: Vec<Progeny<'a, T, R>>) -> &mut Self {
+        self.progenies = progenies;
+        self
+    }
+    fn strategy(&mut self, strategy: U) -> &mut Self {
+        self.strategy = strategy;
+        self
     }
 }
 
 
 
+struct StrategyFn<'a, T> { f: Box<dyn Fn(&T, &()) -> bool + 'a> }
+//
+impl<'a, T> StrategyFn<'a, T> {
+    pub fn new<F>(f: F) -> Self
+    where
+        F: Fn(&T, &()) -> bool + 'a,
+    {
+        Self { f: Box::new(f) }
+    }
+}
+impl<'a, T> StrategyFn<'a, T> {
+    pub fn call(&self, target: &T, params: &()) -> bool {
+        (self.f)(target, params)
+    }
+}
 
-
-// StandardStrategy
+// 
 //
 pub struct StandardStrategy<'a, T, F>
 where
@@ -320,78 +234,75 @@ where
         }
     }
 }
-
-
-pub struct CompositeStrategy<'a, T, S>
+impl<'a, T, F> StrategyWithContext<'a, T> for StandardStrategy<'a, T, F>
 where
-    S: StrategyWithContext<'a, T>,
+    F: Fn(&'a T) -> bool, T: Clone
 {
-    strategies: Vec<S>,
-    phantom: PhantomData<&'a T>,
-}
-impl<'a, T, S> StrategyWithContext<'a, T> for CompositeStrategy<'a, T, S>
-where
-    S: StrategyWithContext<'a, T>,
-{
-    type Params = S::Params;
-
-    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
-        let mut all_strategies = Vec::new();
-        for strategy in &self.strategies {
-            all_strategies.extend(strategy.strategies());
-        }
-        all_strategies
+    fn execute(&self, target: &'a T) -> bool {
+        (self.strategy)(target)
     }
 }
 
-pub struct ConditionalStrategy<'a, T, S>
+// Core Strategy Component 
+//
+pub trait StrategyWithContext<'a, T>
 where
-    S: StrategyWithContext<'a, T>,
+    T: Clone,
 {
-    condition: Box<dyn Fn(&'a T) -> bool>,
-    true_strategy: S,
-    false_strategy: S,
-    target: &'a T,
+    fn execute(&self, target: &'a T) -> bool;
+}
+impl<'a, T, S> StrategyWithContext<'a, T> for S
+where
+    S: Fn(&'a T) -> bool + Clone + 'static, T: Clone + 'a
+{
+    fn execute(&self, target: &'a T) -> bool {
+        self(target)
+    }
+}
+impl<'a, T, S, F> StrategyWithContext<'a, T> for MapStrategy<'a, T, S, F>
+where
+    S: StrategyWithContext<'a, T>, T: Clone,
+    F: Fn(&'a T) -> S + Clone,
+{
+    fn execute(&self, target: &'a T) -> bool {
+        (self.f)(self.target).execute(target)
+    }
 }
 impl<'a, T, S> StrategyWithContext<'a, T> for ConditionalStrategy<'a, T, S>
 where
-    S: StrategyWithContext<'a, T>,
+    S: StrategyWithContext<'a, T>, T: Clone
 {
-    type Params = S::Params;
-
-    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
-        if (self.condition)(self.target) {
-            self.true_strategy.strategies()
+    fn execute(&self, target: &'a T) -> bool {
+        if self.condition.strategy.execute(target) {
+            self.true_strategy.execute(target)
         } else {
-            self.false_strategy.strategies()
+            self.false_strategy.execute(target)
         }
     }
 }
+impl<'a, T, S> StrategyWithContext<'a, T> for CompositeStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone
+{
+    fn execute(&self, target: &'a T) -> bool {
+        self.strategies.iter().all(|strategy| strategy.execute(target))
+    }
+}
 
+// Mapping 
+//
+#[derive(Clone)]
 pub struct MapStrategy<'a, T, S, F>
 where
-    S: StrategyWithContext<'a, T>,
-    F: Fn(&'a T) -> S,
+    S: StrategyWithContext<'a, T>, T: Clone
 {
     strategy: S,
     f: F,
     target: &'a T,
 }
-impl<'a, T, S, F> StrategyWithContext<'a, T> for MapStrategy<'a, T, S, F>
-where
-    S: StrategyWithContext<'a, T>,
-    F: Fn(&'a T) -> S,
-{
-    type Params = S::Params;
-
-    fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
-        (self.f)(self.target).strategies()
-    }
-}
 impl<'a, T, S, F> MapStrategy<'a, T, S, F>
 where
-    S: StrategyWithContext<'a, T>,
-    F: Fn(&'a T) -> S,
+    S: StrategyWithContext<'a, T>, T: Clone
 {
     pub fn new(strategy: S, f: F, target: &'a T) -> Self {
         Self {
@@ -401,141 +312,232 @@ where
         }
     }
 }
-impl<'a, T, S, F> MapStrategy<'a, T, S, F>
+//
+pub struct ConditionalStrategy<'a, T, S>
 where
-    S: StrategyWithContext<'a, T>,
-    F: Fn(&'a T) -> S,
+    S: StrategyWithContext<'a, T>, T: Clone
 {
-    pub fn map<'b, G>(self, f: G) -> MapStrategy<'a, T, Self, G>
-    where
-        G: Fn(&'a T) -> Self,
-    {
-
-        let target = self.target.clone();  // 
-
-        MapStrategy::new(self, f, target)
-    }
+    condition: MapStrategy<'a, T, S, Box<dyn Fn(&'a T) -> bool>>,
+    true_strategy: S,
+    false_strategy: S,
+    target: &'a T,
 }
-
-// Tests for MapStrategy, ConditionalStrategy, CompositeStrategy
-//
-#[cfg(test)]
-mod tests_strats {
-    use super::*;
-
-
-
-    // #[test]
-    // fn test_composite_strategy() {
-    //     let composite_strategy = CompositeStrategy {
-    //         strategies: vec![TrueStrategy, FalseStrategy],
-    //         phantom: PhantomData,
-    //     };
-
-    //     let operation = Operation::with_context(&(), composite_strategy, ());
-    //     assert_eq!(operation.execute(), false);
-    // }
-
-    // #[test]
-    // fn test_conditional_strategy() {
-    //     let conditional_strategy = ConditionalStrategy {
-    //         condition: Box::new(|_| true),
-    //         true_strategy: TrueStrategy,
-    //         false_strategy: FalseStrategy,
-    //         target: &(),
-    //     };
-
-    //     let operation = Operation::with_context(&(), conditional_strategy, ());
-    //     assert_eq!(operation.execute(), true);
-    // }
-
-    // #[test]
-    // fn test_map_strategy() {
-    //     let map_strategy = MapStrategy::new(TrueStrategy, |target| {
-    //         if *target == 0 {
-    //             TrueStrategy
-    //         } else {
-    //             FalseStrategy
-    //         }
-    //     }, &0);
-
-    //     let operation = Operation::with_context(&0, map_strategy, ());
-    //     assert_eq!(operation.execute(), true);
-    // }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-//////////////// Operator ////////////////
-
-
-
-
-// Validator Operation
-//
-pub trait Validator<'a, 'r> {
-    type Target<'t>: Validate<'r>;
-    type Error: std::error::Error;
-
-    fn validate<'b: 'a, F, T>(&'b mut self, f: F) -> Result<T, Self::Error>
-    where F: FnOnce(&mut Self::Target<'r>) -> T;
-}
-//
-// pub trait Validate<'a> { fn validate<'b>(&'a self) -> Result<bool, OpError>; }
-pub trait Validate<'a> { fn validate<'b>(&'a self) -> bool; }
-//
-pub struct ValidatorOp<'a, I> { target: I, op: Operation<'a, I> }
-//
-impl<'a, I> ValidatorOp<'a, I> {
-    pub fn new(target: I, op: Operation<'a, I>) -> Self {
-        Self { target, op }
-    }
-}
-//
-impl<'a, I> Validator<'a, 'a> for ValidatorOp<'a, I>
+impl<'a, T, S> ConditionalStrategy<'a, T, S>
 where
-    I: Validate<'a>,
+    S: StrategyWithContext<'a, T>, T: Clone
 {
-    type Target<'t> = I;
-    type Error = OpError;
-
-    fn validate<'b: 'a, F, R>(&'b mut self, f: F) -> Result<R, Self::Error>
-        where F: FnOnce(&mut Self::Target<'a>) -> R,
-    {  
-            Ok( f(&mut self.target) )
+    pub fn new(
+        condition: MapStrategy<'a, T, S, Box<dyn Fn(&'a T) -> bool>>,
+        true_strategy: S,
+        false_strategy: S,
+        target: &'a T,
+    ) -> Self {
+        Self {
+            condition,
+            true_strategy,
+            false_strategy,
+            target,
+        }
     }
 }
-
-
-impl<'a> Validate<'a> for i32 {
-    fn validate<'b>(&'a self) -> bool {
-        
-        if self % 2 == 0 { true } else { false }
-    
-    }
-}
-
-// Tests for ValidatorOp
 //
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_validator_operation_strategy() {
-        let mut validator = ValidatorOp::new(2, Operation::new(&2));
-        let result = validator.validate(|target| { target.validate() });
-        
-        assert_eq!(result.unwrap(), true);
+#[derive(Clone)]
+pub struct CompositeStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, 
+    T: Clone
+{
+    strategies: HashSet<S>,
+    progenies: Vec<Progeny<'a, T, S>>,
+}
+impl<'a, T, S> CompositeStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone
+{
+    pub fn new(strategies: HashSet<S>) -> Self {
+        Self {
+            strategies,
+            progenies: Vec::new(),
+        }
+    }
+}
+impl<'a, T, S> CompositeStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone
+{
+    pub fn add_progeny(&mut self, progeny: Progeny<'a, T, S>) {
+        self.progenies.push(progeny);
+    }
+    pub fn execute(&self, target: &'a T) -> bool {
+        self.strategies.iter().all(|strategy| strategy.execute(target))
+    }
+}
+impl<'a, T, S> CompositeStrategy<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone
+{
+    pub fn progenies(&self) -> &Vec<Progeny<'a, T, S>> {
+        &self.progenies
     }
 }
 
+pub trait StrategyMap<'a, T, S>
+where
+    S: StrategyWithContext<'a, T>, T: Clone
+{
+    fn get(&self, target: &'a T) -> S;
+}
+impl<'a, T, S, M> StrategyMap<'a, T, S> for &'a M
+where
+    S: StrategyWithContext<'a, T>, T: Clone + 'a,
+    M: Fn(&'a T) -> S + 'a,
+{
+    fn get(&self, target: &'a T) -> S {
+        (self)(target)
+    }
+}
+impl<'a, T, S, M> StrategyMap<'a, T, S> for Box<M>
+where
+    S: StrategyWithContext<'a, T>, T: Clone + 'a,
+    M: Fn(&'a T) -> S + 'a,
+{
+    fn get(&self, target: &'a T) -> S {
+        (self)(target)
+    }
+}
+
+// Map patterns to strategies
+//
+pub trait StrategyMapPattern<'a, T, S, P, M>
+where
+    S: StrategyWithContext<'a, T> + Clone + 'a + std::cmp::Eq + std::hash::Hash, T: Clone + 'a,
+    P: for <'b> ProgenyOp<'b, T, S>,
+    M: StrategyMap<'a, T, S>, CompositeStrategy<'a, T, S>: StrategyWithContext<'a, T> 
+{
+    fn map(&self, strategy_map: &dyn StrategyMap<'a, T, S>, target: &'a T) -> CompositeStrategy<'a, T, S>;
+}
+impl<'a, T, S, P, M> StrategyMapPattern<'a, T, S, P, M> for P
+where
+    S: StrategyWithContext<'a, T> + Clone + 'a + std::cmp::Eq + std::hash::Hash, T: Clone + 'a,
+    P: for <'b> ProgenyOp<'b, T, S>,
+    M: StrategyMap<'a, T, S>, CompositeStrategy<'a, T, S>: StrategyWithContext<'a, T> 
+{
+    fn map(&self, strategy_map: &dyn StrategyMap<'a, T, S>, target: &'a T) -> CompositeStrategy<'a, T, S> {
+        let mut composite_strategy = CompositeStrategy::new(HashSet::new());
+        let progenies = self.progeny(strategy_map, target);
+        for progeny in progenies {
+            composite_strategy.add_progeny(progeny);
+        }
+        composite_strategy
+    }
+}
+
+
+
+// Progeny Operation
+//
+pub trait ProgenyOp<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+{
+    fn progeny(&self, strategy_map: &dyn StrategyMap<'a, T, S>, target: &'a T) -> Vec<Progeny<'a, T, S>>;
+}
+impl<'a, T, S, P> ProgenyOp<'a, T, S> for P
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+    P: for <'b> ProgenyOp<'b, T, S>,
+{
+    fn progeny(&self, strategy_map: &dyn StrategyMap<'a, T, S>, target: &'a T) -> Vec<Progeny<'a, T, S>> {
+        self.progeny(strategy_map, target)
+    }
+}
+
+// The Leaf of Progeny Operation
+pub struct ProgenyOpLeaf<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+{
+    strategy: S,
+    phantom: PhantomData<&'a T>,
+}
+impl<'a, T, S> ProgenyOpLeaf<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+{
+    pub fn new(strategy: S) -> Self {
+        Self {
+            strategy,
+            phantom: PhantomData,
+        }
+    }
+}
+
+pub struct ProgenyOpBuilder<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+{
+    strategy: Option<S>,
+    phantom: PhantomData<&'a T>,
+}
+impl<'a, T, S> ProgenyOpBuilder<'a, T, S>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+{
+    pub fn new() -> Self {
+        Self {
+            strategy: None,
+            phantom: PhantomData,
+        }
+    }
+    pub fn strategy(mut self, strategy: S) -> Self {
+        self.strategy = Some(strategy);
+        self
+    }
+    pub fn build(self) -> Result<ProgenyOpLeaf<'a, T, S>, &'static str> {
+        match self.strategy {
+            Some(strategy) => Ok(ProgenyOpLeaf::new(strategy)),
+            None => Err("Strategy is missing"),
+        }
+    }
+}
+
+// Builders for ProgenyOp
+//
+// builder functions to be used by the StrategyMapPattern
+//
+pub fn progeny<'a, T, S, P>(progeny_op: P) -> P
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+    P: for <'b> ProgenyOp<'b, T, S>,
+{
+    progeny_op
+}
+pub fn progeny_op<'a, T, S, P>(progeny_op: P) -> P
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+    P: for <'b> ProgenyOp<'b, T, S>,
+{
+    progeny_op
+}
+pub fn progeny_op_box<'a, T, S, P>(progeny_op: P) -> Box<P>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+    P: for <'b> ProgenyOp<'b, T, S>,
+{
+    Box::new(progeny_op)
+}
+pub fn progeny_op_leaf<'a, T, S>(strategy: S) -> Result<ProgenyOpLeaf<'a, T, S>, &'static str>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+{
+    ProgenyOpBuilder::new().strategy(strategy).build()
+}
+pub fn progeny_op_leaf_box<'a, T, S>(strategy: S) -> Result<Box<ProgenyOpLeaf<'a, T, S>>, &'static str>
+where
+    S: StrategyWithContext<'a, T> + Clone, T: Clone,
+{
+    match progeny_op_leaf(strategy) {
+        Ok(progeny_op_leaf) => Ok(Box::new(progeny_op_leaf)),
+        Err(err) => Err(err),
+    }
+}

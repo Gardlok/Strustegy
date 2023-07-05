@@ -13,7 +13,7 @@ pub trait Inprogenitance {
 
     fn root<'a>(&'a self) -> Self::Progeny<'a> where Self: 'a;
     fn progenitor<'a>(&'a self, progeny: Self::Progeny<'a>) -> Option<Self::Progeny<'a>>;
-    // fn perform_operation<'a>(&'a self, progeny: Self::Progeny<'a>) -> Self::Progeny<'a>; 
+    fn perform_operation<'a>(&'a self, progeny: Self::Progeny<'a>) -> Self::Progeny<'a>; 
 }
 
 // Progenitor
@@ -26,6 +26,26 @@ pub trait Progenation<'a, T: 'a + Clone, R: Clone> {
     fn progenate(&self, progeny: Progeny<'a, T, R>) -> Self;
 }
 
+// Operation
+pub trait ProgenyOp<'a, T: 'a + Clone, R: Clone> {
+    fn perform_operation(&self, progeny: Progeny<'a, T, R>) -> Progeny<'a, T, R>;
+}
+
+pub trait InprogenitanceOps<'a, T: 'a + Clone, R: Clone>: 
+    Inprogenitance + 
+    Progenation<'a, T, R> + 
+    Progenitor<'a, T, R> + 
+    ProgenyOp<'a, T, R> {}
+
+impl<'a, T: 'a + Clone, R: Clone, U> InprogenitanceOps<'a, T, R> for U 
+where
+    U: Inprogenitance + 
+       Progenation<'a, T, R> + 
+       Progenitor<'a, T, R> + 
+       ProgenyOp<'a, T, R> {}
+
+
+
 pub struct Progeny<'a, T, R> 
 where
     T: 'a + Clone,
@@ -37,7 +57,71 @@ where
     pub(crate) result: Option<R>,
 }
 
-#[derive(Debug)]
+impl<'a, T: 'a + Clone, R: Clone> Progeny<'a, T, R> {
+    pub fn new(value: &'a T) -> Self {
+        Self {
+            value,
+            progenitor: None,
+            operations: vec![],
+            result: None,
+        }
+    }
+
+    pub fn set_operations(&mut self, operations: Vec<Box<dyn Fn(&'a T) -> R>>) {
+        self.operations = operations;
+    }
+
+    pub fn result(&self) -> Option<R> {
+        self.result.clone()
+    }
+
+    pub fn perform_operations(&mut self) {
+        for operation in &self.operations {
+            self.result = Some(operation(self.value));
+        }
+    }
+
+    pub fn perform_operation(&mut self, operation: Box<dyn Fn(&'a T) -> R>) {
+        self.result = Some(operation(self.value));
+    }
+
+    pub fn progenitor(&self) -> Option<&'a dyn Progenitor<'a, T, R>> {
+        self.progenitor
+    }
+
+    pub fn set_progenitor(&mut self, progenitor: &'a dyn Progenitor<'a, T, R>) {
+        self.progenitor = Some(progenitor);
+    }
+
+    pub fn value(&self) -> &'a T {
+        self.value
+    }
+
+    pub fn progenate(&self, progeny: Progeny<'a, T, R>) -> Progeny<'a, T, R> {
+        progeny
+    }
+
+    pub fn progenate_with_operations(&self, operations: Vec<Box<dyn Fn(&'a T) -> R>>) -> Progeny<'a, T, R> {
+        let mut progeny = Progeny::new(self.value);
+        progeny.set_operations(operations);
+        progeny.perform_operations();
+        progeny
+    }
+
+    pub fn progenate_with_operation(&self, operation: Box<dyn Fn(&'a T) -> R>) -> Progeny<'a, T, R> {
+        let mut progeny = Progeny::new(self.value);
+        progeny.perform_operation(operation);
+        progeny
+    }
+
+    pub fn progenate_with_progenitor(&self, progenitor: &'a dyn Progenitor<'a, T, R>) -> Progeny<'a, T, R> {
+        let mut progeny = Progeny::new(self.value);
+        progeny.set_progenitor(progenitor);
+        progeny
+    }
+
+}
+
 pub struct InprogenitanceImpl<'a, T: Clone, R: Clone> {
     pub value: T,
     pub progeny: Vec<Progeny<'a, T, R>>, 
@@ -57,16 +141,18 @@ impl<'a, T: Clone, R: Clone> InprogenitanceImpl<'a, T, R> {
         self.progeny.clone()
     }
 
-    pub fn progenate(&mut self, progeny: Progeny<'a, T, R>) {
-        self.progeny.push(progeny);
-    }
-
     pub fn value(&self) -> T {
         self.value.clone()
     }
 
     pub fn result(&self) -> Option<R> {
         None
+    }
+}
+
+impl<'a, T: Clone, R: Clone> Progenitor<'a, T, R> for InprogenitanceImpl<'a, T, R> {
+    fn progeny(&self) -> Vec<Progeny<'a, T, R>> {
+        self.progeny.clone()
     }
 }
 
@@ -97,15 +183,14 @@ where
         self
     }
 
-    pub fn build(self) -> Option<MyInprogenitance<'a, T, R>> {
+    pub fn build(self) -> Option<InprogenitanceImpl<'a, T, R>> {
         if self.value.is_some() {
-            Some(MyInprogenitance {
-                inprogenitance: InprogenitanceImpl {
+            Some(InprogenitanceImpl {
                     value: self.value.unwrap(),
                     progeny: vec![],
                     _marker: PhantomData,
                 },
-            })
+            )
         } else {
             None
         }
@@ -117,60 +202,14 @@ where
 
 
 
-// MyInprogenitance is a wrapper around InprogenitanceImpl that implements Progenitor, Operation, Result, and Value.
-// It is the only way to access InprogenitanceImpl. Which is useful for encapsulation.
-pub struct MyInprogenitance<'a, T: 'a + Clone, R: Clone> {
-    pub(crate)inprogenitance: InprogenitanceImpl<'a, T, R>,
-}
 
-impl<'a, T: Clone, R> MyInprogenitance<'a, T, R>
-where
-    T: 'a,
-    R: 'a + Clone,
-{
-    pub fn new() -> MyInprogenitanceBuilder<'a, T, R> {
-        MyInprogenitanceBuilder::new()
-    }
-
-    pub fn progeny(&self) -> Vec<Progeny<'a, T, R>> {
-        self.inprogenitance.progeny()
-    }
-
-    pub fn progenate(&mut self, progeny: Progeny<'a, T, R>) {
-        self.inprogenitance.progenate(progeny);
-    }
-
-    pub fn value(&self) -> T {
-        self.inprogenitance.value()
-    }
-
-    pub fn result(&self) -> Option<R> {
-        self.inprogenitance.result()
-    }
-
-
-
-    pub fn root(&'a self) -> Progeny<'a, T, R> {
-        if let Some(progeny) = self.inprogenitance.progeny().first() {
-            progeny.clone()
-        } else {
-            Progeny {
-                value: &self.inprogenitance.value,
-                progenitor: None,
-                operations: vec![],
-                result: None,
-            }
-        }
-    }
-
-}
 
 
 // compute the result of the progeny.
 pub trait Result<'a, T: 'a + Clone, R: Clone> {
     fn compute_result(&self, progeny: Progeny<'a, T, R>) -> R;
 }
-impl<'a, T: Clone, R: Clone> Result<'a, T, R> for MyInprogenitance<'a, T, R> {
+impl<'a, T: Clone, R: Clone> Result<'a, T, R> for InprogenitanceImpl<'a, T, R> {
     fn compute_result(&self, progeny: Progeny<'a, T, R>) -> R {
         progeny.result.unwrap()
     }
@@ -180,7 +219,7 @@ impl<'a, T: Clone, R: Clone> Result<'a, T, R> for MyInprogenitance<'a, T, R> {
 pub trait Combinator<'a, T: 'a + Clone, R: Clone> {
     fn combine(&self, progeny: Progeny<'a, T, R>) -> Progeny<'a, T, R>;
 }
-impl<'a, T: Clone, R: Clone> Combinator<'a, T, R> for MyInprogenitance<'a, T, R> {
+impl<'a, T: Clone, R: Clone> Combinator<'a, T, R> for InprogenitanceImpl<'a, T, R> {
     fn combine(&self, progeny: Progeny<'a, T, R>) -> Progeny<'a, T, R> {
         progeny
     }
@@ -201,27 +240,23 @@ impl<'a, T: 'a + Clone, R: Clone> Value<'a, T, R> for InprogenitanceImpl<'a, T, 
 
 // Deref and DerefMut //
 use std::ops::Deref;
-impl<'a, T: Clone, R: Clone> Deref for MyInprogenitance<'a, T, R> {
+impl<'a, T: Clone, R: Clone> Deref for InprogenitanceImpl<'a, T, R> {
     type Target = InprogenitanceImpl<'a, T, R>;
 
     fn deref(&self) -> &Self::Target {
-        &self.inprogenitance
+        &self
     }
 }
 use std::ops::DerefMut;
-impl<'a, T: Clone, R: Clone> DerefMut for MyInprogenitance<'a, T, R> 
-where
-    T: 'a,
-    R: 'a + Clone,
-{
+impl<'a, T: Clone, R: Clone> DerefMut for InprogenitanceImpl<'a, T, R> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inprogenitance
+        self
     }
 }
 
 // Debuggers, Cloners, and Displayers //
 use std::fmt::Debug;
-impl<'a, T: 'a + Clone + Debug, R: Clone + Debug> Debug for MyInprogenitance<'a, T, R> {
+impl<'a, T: 'a + Clone + Debug, R: Clone + Debug> Debug for InprogenitanceImpl<'a, T, R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MyInprogenitance")
             .field("value", &self.value)
@@ -262,12 +297,8 @@ impl<'a, T: Clone, R: Clone> Clone for Progeny<'a, T, R> {
     }
 }
 
-// possible implementation of Progenitor
-impl<'a, T: Clone, R: Clone> Progenitor<'a, T, R> for MyInprogenitance<'a, T, R> {
-    fn progeny(&self) -> Vec<Progeny<'a, T, R>> {
-        self.progeny.clone()
-    }
-}
+
+
 
 
 
