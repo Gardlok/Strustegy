@@ -7,6 +7,82 @@
 
 use std::any::Any;
 use std::marker::PhantomData;
+use std::collections::{HashMap, HashSet};
+
+
+
+
+// ParameterKey Trait (Variable) 
+//
+pub trait ParameterPair<'a, T, U> {
+    type Phantom<'p>: PhantomLifetime<'p>;
+    fn key(&'a self) -> &'a T;
+    fn value(&'a self) -> &'a U;
+}
+// Parameterized Trait (Variable)
+//
+pub trait Parameterized<'a, T> {
+    type Phantom<'p>: PhantomLifetime<'p>;
+    fn parameters(&'a self) -> &'a HashMap<&'a str, &'a dyn Any>;
+}
+// ParameterEnum Trait (Variable)
+//
+pub trait ParameterEnum<'a, T> {
+    type Phantom<'p>: PhantomLifetime<'p>;
+    fn parameter(&'a self) -> &'a dyn Any;
+}
+// Parameterized Lifetime Trait - supporting hidden parameters.
+//
+pub trait ParameterizedLifetime<'a, T> {
+    type Phantom<'p>: PhantomLifetime<'p>;
+}
+// Phantom Lifetime Trait - supports strategic lifetimes 
+//                          delegated to the parameterized.
+pub trait PhantomLifetime<'a> {
+    type Phantom<'p>: PhantomLifetime<'p>;
+}
+// Lifetime Trait 
+//
+pub trait Lifetime<'a> {}
+impl<'a> Lifetime<'a> for &'a dyn Sealed {}
+impl<'a> Lifetime<'a> for &'a mut dyn Sealed {}
+impl<'a> Lifetime<'a> for Box<dyn Sealed> {}
+// Bounds Trait 
+//
+pub trait Bounds<T> {}
+impl<'a, T> Bounds<T> for &'a T {}
+impl<'a, T> Bounds<T> for &'a mut T {}
+impl<T> Bounds<T> for Box<T> {}
+// Sealed Trait 
+//
+pub trait Sealed {}
+impl<T> Sealed for T {} 
+
+// ParameterObject
+//
+pub struct ParameterObject<'a> {
+    parameters: HashMap<&'a str, &'a dyn Any>,
+}
+impl<'a> ParameterObject<'a> {
+    pub fn new() -> Self {
+        Self {
+            parameters: HashMap::new(),
+        }
+    }
+}
+impl<'a> ParameterObject<'a> {
+    pub fn parameter(&'a mut self, key: &'a str, value: &'a dyn Any) -> &'a mut Self {
+        self.parameters.insert(key, value);
+        self
+    }
+}
+impl<'a> ParameterObject<'a> {
+    pub fn get(&self, key: &'a str) -> Option<&&'a dyn Any> {
+        self.parameters.get(key)
+    }
+}
+
+
 
 pub trait Inprogenitance {
     type Progeny<'a>: 'a where Self: 'a;
@@ -196,14 +272,6 @@ where
         }
     }
 }
-
-// MyInprogenitanceBuilder strategy
-
-
-
-
-
-
 
 // compute the result of the progeny.
 pub trait Result<'a, T: 'a + Clone, R: Clone> {

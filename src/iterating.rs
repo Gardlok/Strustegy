@@ -1,6 +1,32 @@
 
-use crate::{Gat, Map};
+use std::marker::PhantomData;
 use std::ops::Deref;
+
+
+pub struct Map<I, F> {
+    iter: I,
+    f: F,
+}
+// GAT Trait 
+//
+pub trait Gat<'a> { 
+	type Item;
+}
+// Superceding Trait 
+//
+pub trait Super<'a> {
+    type Super: 'a;
+    
+    fn super_(&'a self) -> &'a Self::Super;
+}
+// Scoping Object 
+//
+pub struct Scope<'a, T>(PhantomData<&'a mut T>);
+impl<'a, T> Scope<'a, T> {
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
+}
 
 
 // Lending Iterator
