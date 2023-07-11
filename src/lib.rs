@@ -1,4 +1,6 @@
 
+
+
 use std::any::{Any, TypeId, type_name};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -11,15 +13,33 @@ mod inprogenitance;
 mod iterating;
 mod strategy;
 
+use arraydeque::ArrayDeque;
 pub use iterating::*;
 use syn::token::In;
 
-use crate::iterating::{Map, Gat, LendingIterator, ContextExtendingIterator};
-use crate::inprogenitance::{Inprogenitance, Progeny, ProgenyOp, Progenation, Progenitor, InprogenitanceOps, MyInprogenitanceBuilder};
-use crate::strategy::{StrategyFnWithContext, StrategyLifetime, StrategyObject, 
-    StrategyWithContext, StrategyFn, CompositeStrategy, ConditionalStrategy, StrategyMap};
+use crate::iterating::{Map, CExtrator};
+
+use crate::strategy::{StrategyWithContext, StrategyFn, CompositeStrategy, ConditionalStrategy, StrategyMap};
 
 mod test;
+
+use std::rc::Rc;
+use std::sync::Arc;
+use std::ops::Deref;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -92,6 +112,7 @@ impl<'a, T: Clone + 'a, S: StrategyWithContext<'a, T> + Clone + 'a> Applicative<
     }
 }
 
+
 // Op Error 
 //
 #[derive(Debug, Clone)]
@@ -114,33 +135,4 @@ impl Error for OpError {}
 
 
 
-
-// Inprogenitance Operation
-//
-pub struct InprogenitanceOperation<'a, T: 'a + Clone, R: Clone, U: StrategyWithContext<'a, T>> {
-    progenies: Vec<Progeny<'a, T, R>>,
-    strategy: U,
-}
-impl<'a, T: 'a + Clone, R: Clone, U: StrategyWithContext<'a, T>> InprogenitanceOperation<'a, T, R, U> {
-    pub fn new(strategy: U) -> Self {
-        Self {
-            progenies: Vec::new(),
-            strategy,
-        }
-    }
-}
-impl<'a, T: 'a + Clone, R: Clone, U: StrategyWithContext<'a, T>> InprogenitanceOperation<'a, T, R, U> {
-    fn progeny(&mut self, progeny: Progeny<'a, T, R>) -> &mut Self {
-        self.progenies.push(progeny);
-        self
-    }
-    fn progenies(&mut self, progenies: Vec<Progeny<'a, T, R>>) -> &mut Self {
-        self.progenies = progenies;
-        self
-    }
-    fn strategy(&mut self, strategy: U) -> &mut Self {
-        self.strategy = strategy;
-        self
-    }
-}
 

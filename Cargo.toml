@@ -14,6 +14,7 @@ rand = "0.8.5"
 regex = "1.8.4"
 syn = "2.0.18"
 rhai = "1.15.1"
+arraydeque = "0.5.1"
 
 [dev-dependencies]
 criterion = "*"

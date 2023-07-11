@@ -23,7 +23,7 @@ mod tests {
     use std::any::Any;
 
     // use crate::Operation;
-    use crate::StrategyObject;
+
     // use crate::TargetObject;
     // use crate::ParameterObject;
 
@@ -87,44 +87,44 @@ mod tests {
 }
 
 
-// #[cfg(test)]
-// mod tests_with_context {
+#[cfg(test)]
+mod tests_with_context {
 
 
-//     use crate::StrategyFnWithContext;
-//     use crate::StrategyWithContext;
-//     use crate::OperationWithContext;
 
-//     use std::any::{Any, TypeId};
-//     use std::collections::HashMap;
+    use crate::StrategyWithContext;
 
-//     struct TestStrategy;
-//     struct TestStrategyFn<F>(F);
-//     impl<'a, T, F> StrategyFnWithContext<'a, T> for TestStrategyFn<F>
-//     where
-//         F: Fn(&T, &HashMap<&'a str, &'a dyn Any>) -> bool,
-//     {
-//         type Params = HashMap<&'a str, &'a dyn Any>;
 
-//         fn call(&self, target: &T, params: &Self::Params) -> bool {
-//             (self.0)(target, params)
-//         }
-//     }
-//     impl<'a, T> StrategyWithContext<'a, T> for TestStrategy {
-//         type Params = HashMap<&'a str, &'a dyn Any>;
+    use std::any::{Any, TypeId};
+    use std::collections::HashMap;
+
+    struct TestStrategy;
+    struct TestStrategyFn<F>(F);
+    // impl<'a, T, F> StrategyFnWithContext<'a, T> for TestStrategyFn<F>
+    // where
+    //     F: Fn(&T, &HashMap<&'a str, &'a dyn Any>) -> bool, T: Clone
+    // {
+    //     type Params = HashMap<&'a str, &'a dyn Any>;
+
+    //     fn call(&self, target: &T, params: &Self::Params) -> bool {
+    //         (self.0)(target, params)
+    //     }
+    // }
     
-//         fn strategies(&self) -> Vec<Box<dyn StrategyFnWithContext<'a, T, Params = Self::Params>>> {
-//             vec![
-//                 Box::new(TestStrategyFn(|target: &T, params: &Self::Params| {
-//                     assert_eq!(params.get("test_param").unwrap().downcast_ref::<&str>().unwrap(), &"test_value");
-                    
-//                     true
-//                 })),
-//                 Box::new(TestStrategyFn(|target: &T, params: &Self::Params| { true })),
-//             ]
-//         }
-//     }
+    // #[test]
+    // fn test_strategy_with_context() {
+    //     let strategy = TestStrategy;
+    //     let mut parameters = HashMap::new();
+    //     parameters.insert("test_param", &"test_value" as &dyn Any);
 
+    //     let strategy_with_context = <dyn StrategyWithContext<&str>>::new(&strategy, parameters);
+
+    //     assert!(strategy_with_context.call(&"test_target"));
+    // }
+
+
+
+}
 //     #[test]
 //     fn test_operation_with_context_execute<'a>() {
 //         let target = "test target";
@@ -148,7 +148,6 @@ mod integration_tests {
     use std::any::Any;
 
     // use crate::Operation;
-    use crate::StrategyObject;
     // use crate::TargetObject;
     // use crate::ParameterObject;
 
@@ -211,7 +210,7 @@ mod inprogenitance_tests {
     use std::marker::PhantomData;
 
     use super::*;
-    use crate::inprogenitance::{Inprogenitance, MyInprogenitanceBuilder, Progeny, InprogenitanceImpl};
+    // use crate::inprogenitance::{Inprogenitance,  Progeny, InprogenitanceImpl};
 
     // #[test]
     // fn test_inprogenitance() {
@@ -255,16 +254,18 @@ mod inprogenitance_tests {
     #[test]
     fn test_2() {
 
-        // Create a new MyInprogenitance instance.
-        let mut my_inprogenitance = MyInprogenitanceBuilder::<&i32, bool>::new()
-            .value(&1)
-            .progeny(Progeny {
-                value: &&1,
-                progenitor: None,
-                operations: vec![],
-                result: None,
-            })
-            .build();
+        // // Create a new MyInprogenitance instance.
+        // let mut my_inprogenitance = MyInprogenitanceBuilder::<&i32, bool>::new()
+        //     .value(&1)
+        //     .progeny(Progeny {
+        //         value: &&1,
+        //         progenitor: None,
+        //         operations: vec![],
+        //         result: None,
+        //     })
+        //     .build();
+        
+        // // assert_eq!(my_inprogenitance.unwrap(), &1);
 
 
 
@@ -283,11 +284,11 @@ mod inprogenitance_tests {
     
     #[test]
     fn test_inprogenitance3<'a>() {
-        let mut my_inprogenitance: InprogenitanceImpl<'a, &i32, bool> = InprogenitanceImpl {
-            value: &1,
-            progeny: vec![],
-            _marker: PhantomData,
-        };
+        // let mut my_inprogenitance: InprogenitanceImpl<'a, &i32, bool> = InprogenitanceImpl {
+        //     value: &1,
+        //     progeny: vec![],
+        //     _marker: PhantomData,
+        // };
 
 
         // my_inprogenitance.progenate(Progeny {
