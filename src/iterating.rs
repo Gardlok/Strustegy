@@ -2,8 +2,6 @@
 use std::ops::Deref;
 
 
-
-
 // Super Trait
 pub trait Super<'a> {
     type Super: 'a;
@@ -70,7 +68,7 @@ where Self: Sized,
     }
 }///////////////////////////////////////////////////////////////////
 //                     Map Item Cleanup                           //
-impl<'a, I, F> Drop for Map<'a, I, F>
+impl<'a, I, F> Drop for Map<'a, I, F> 
 where I: CExtrator<'a>,
     F: FnMut(&mut <I as CExtrator<'a>>::Item) 
 {
@@ -123,107 +121,6 @@ pub fn map2<'a, I, F>(iter: I, f: &'a F) -> Map<'a, I, F> where I: CExtrator<'a,
 
 
 
-
-// const CLEAR: &str = "\x1B[2J\x1B[1;1H";
-
-// struct Unbounded;
-// struct Bounded {
-//     bound: usize,
-//     delims: (char, char),
-// }
-
-// struct Progress<Iter, Bound> {
-//     iter: Iter,
-//     i: usize,
-//     bound: Bound,
-// }
-
-// trait ProgressDisplay: Sized {
-//     fn display<Iter, Bound>(&self, progress: &Progress<Iter, Bound>) where Iter: Iterator;
-// }
-
-// impl ProgressDisplay for Unbounded {
-//     fn display<Iter, Bound>(&self, progress: &Progress<Iter, Bound>) where Iter: Iterator {
-//         println!("{}", "*".repeat(progress.i))
-//     }
-// }
-
-// impl ProgressDisplay for Bounded {
-//     fn display<Iter, Bound>(&self, progress: &Progress<Iter, Bound>) where Iter: Iterator {
-//         println!(
-//             "{}{}{}{}",
-//             self.delims.0,
-//             "*".repeat(progress.i),
-//             " ".repeat(self.bound - progress.i),
-//             self.delims.1
-//         );
-//     }
-// }
-// impl<Iter> Progress<Iter, Unbounded> {
-//     pub fn new(iter: Iter) -> Self {
-//         Progress {
-//             iter,
-//             i: 0,
-//             bound: Unbounded,
-//         }
-//     }
-// }
-// impl<Iter> Progress<Iter, Unbounded>
-// where
-//     Iter: ExactSizeIterator,
-// {
-//     pub fn with_bound(self) -> Progress<Iter, Bounded> {
-//         let bound = Bounded {
-//             bound: self.iter.len(),
-//             delims: ('[', ']'),
-//         };
-//         Progress {
-//             i: self.i,
-//             iter: self.iter,
-//             bound,
-//         }
-//     }
-// }
-// impl<Iter> Progress<Iter, Bounded> {
-//     pub fn with_delims(mut self, delims: (char, char)) -> Self {
-//         self.bound.delims = delims;
-//         self
-//     }
-// }
-// impl<Iter, Bound> Iterator for Progress<Iter, Bound>
-// where
-//     Iter: Iterator,
-//     Bound: ProgressDisplay,
-// {
-//     type Item = Iter::Item;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         print!("{}", CLEAR);
-//         self.bound.display(&self);
-//         self.i += 1;
-//         self.iter.next()
-//     }
-// }
-
-
-// // 
-// trait ProgressIterator: Iterator {
-//     fn progress(self) -> Progress<Self, Unbounded>
-//     where
-//         Self: Sized,
-//     {
-//         Progress::new(self)
-//     }
-// }
-// impl<Iter> ProgressIterator for Iter where Iter: Iterator {}
-// // Unit test for the progress bar
-// #[test]
-// fn progress_bar() {
-//     let progress = (0..3).progress().with_bound().with_delims(('[', ']'));
-//     for i in progress {
-//         assert!(i < 3);
-//     }
-// }
 
 
 
