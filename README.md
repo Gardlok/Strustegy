@@ -2,13 +2,9 @@
 
 Validation library for Rust with emphasis on the Strategy pattern
 
-## Features
-
-### Flexible Validations: Define your own validation strategies and chain them together to create complex validation routines, among other things.
-
 ## Disclaimer
 
-This library is still in early development. The API is still subject to change. 
+This library is still in early development. The API is still subject to change.
 
 ## Contributing
 

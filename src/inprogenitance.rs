@@ -176,13 +176,5 @@ impl<'a, Ref, T: Clone, RefNode> Clone for Node<Ref, T> where Ref: RcLike<Node<R
     } 
 }
 
-use crate::indexing::{Index, Indexer, Indices};
 
-// // List implements Indexer, which allows us to index into the list
-// impl<'a, Ref, T, C> Indexer for List<'a, Ref, T, C> where Ref: RcLike<Node<Ref, T>>, C: Fn(&'a T) -> bool {
-//     type Output = T;
-//     type Indices = Indices<'a, Ref, T, C>;
-//     fn indices(&self) -> Self::Indices {
-//         Indices { list: self, node: self.head.clone(), _id: PhantomData, min: 0, max: self.len() }
-//     }
-// }
+

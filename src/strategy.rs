@@ -6,6 +6,52 @@ use std::hash::{Hash, Hasher};
 
 use arraydeque::ArrayDeque;
 
+use crate::Validaty;
+use crate::OpError;
+
+
+
+
+
+// Applicative Trait
+//
+pub trait Applicative<'a, T, S> where S: StrategyWithContext<'a, T> + Clone, T: Clone,
+{
+    type Validaty: 'a;
+    type Strategies: 'a;
+    type Output: 'a;
+
+    fn valid(&self, target: &'a T) -> Validaty<Self::Validaty>;
+    fn strategies(&self, target: &'a T) -> Self::Strategies;
+}
+//
+impl<'a, T, S> Applicative<'a, T, S> for S where S: StrategyWithContext<'a, T> + Clone + 'a, T: Clone + 'a,
+{
+    type Validaty = Validaty<'a, T>;
+    type Strategies = HashSet<S>;
+    type Output = Vec<Validaty<'a, T>>;
+
+    fn valid(&self, target: &'a T) -> Validaty<Self::Validaty> {
+        let valid = self.execute(target);
+        if valid { Validaty::Valid(1.0) } else { Validaty::Valid(0.0) }
+    }
+    fn strategies(&self, target: &'a T) -> Self::Strategies {
+        let mut strategies = HashSet::new();
+        // strategies.insert(self.clone());
+        strategies
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
 /////////
 // An example of a generic function that takes a closure.
 trait SortStrategy { fn sort(&self, data: &mut [i32]); }
@@ -15,13 +61,13 @@ impl<F: Fn(&mut [i32])> SortStrategy for ClosureSortStrategy<F> {
 }
 fn sort_data<S: SortStrategy>(strategy: &S, data: &mut [i32]) { strategy.sort(data); }
 
+/////
 
 
 
 
 
-
-struct StrategyStage<'a> { buffer: ArrayDeque<Box<dyn Fn(i32) -> i32 + 'a>, 3>, }
+pub struct StrategyStage<'a> { buffer: ArrayDeque<Box<dyn Fn(i32) -> i32 + 'a>, 3>, } 
 impl<'a> StrategyStage<'a> {
     fn lend_func(&mut self, f: Box<dyn Fn(i32) -> i32 + 'a>) {
         self.buffer.push_back(f);
@@ -53,7 +99,8 @@ where
 
 
 // Dynamic Dispatched Strategy
-pub(crate) struct StrategyFn<'a, T> { f: Box<dyn Fn(&T, &()) -> bool + 'a> }
+pub struct StrategyFn<'a, T> { f: Box<dyn Fn(&T, &()) -> bool + 'a> }
+
 impl<'a, T> StrategyFn<'a, T> {
     pub fn new<F>(f: F) -> Self where F: Fn(&T, &()) -> bool + 'a,
     {
@@ -106,57 +153,4 @@ pub struct ConditionalStrategy<'a, T, S> where S: StrategyWithContext<'a, T>
 }
 
 
-
-
-
-
-
-
- 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // #[test]
-    // fn test_strategy() {
-    //     let target = &1;
-    //     let strategy = strategy(|target: &i32| *target == 1, target);
-    //     assert!(strategy.strategy.execute(target));
-    // }
-
-
-    #[test]
-    fn test_pattern() {
-// ---------------
-    fn generic_closure<F: Fn(i32)>(f: F) {
-        f(0);
-        f(1);
-    }
-
-    generic_closure(|x| println!("{}", x)); // A
-    generic_closure(|x| { // B
-        let y = x + 2;
-        println!("{}", y);
-    });
-
-
-    fn closure_object(f: &dyn Fn(i32)) {
-        f(0);
-        f(1);
-    }
-
-    closure_object(&|x| println!("{}", x));
-    closure_object(&|x| {
-        let y = x + 2;
-        println!("{}", y);
-    });
-    }
-
-
-
-
-
-
-
-}
 

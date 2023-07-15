@@ -115,10 +115,10 @@ impl<H, T: HList> HList for HListEnum<H, T> where for<'a> <T as HList>::Item<'a>
     type Item<'a> = HListEnum<H, <T as HList>::Item<'a>>;
 }   
 
-
-
-
-
+// HListable trait for HCons. This allows us to use HCons in functions that take a type that implements HListable.
+impl<'a, H, T> HListable<'a> for HCons<H, T> where for<'b> <T as HList>::Item<'b>: HList, T: HList {
+    type Output = HListEnum<H, <T as HList>::Item<'a>>;
+}
 
 // HLEval is a trait that provides evaluation of HLists. 
 pub trait HLEval<'a> {
@@ -185,7 +185,7 @@ macro_rules! HListGate {
     ($e:expr) => { hlist!($e) };  
 }
 
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 

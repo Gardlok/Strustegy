@@ -3,7 +3,6 @@
 
 use std::error::Error;
 
-
 mod inprogenitance;
 mod iterating;
 mod strategy;
@@ -11,18 +10,10 @@ mod indexing;
 mod listing;
 mod new;
 
-
-
 use crate::strategy::{StrategyWithContext, StrategyFn};
 
 mod test;
 
-
-
-
-
-// Validaty tracks the validity of a strategy to a target.
-// 
 #[derive(Clone)]
 pub enum Validaty<'a, T> {
     Valid(f32),        // ratio of valid progenies to total progenies
@@ -30,17 +21,23 @@ pub enum Validaty<'a, T> {
     Error(OpError),    // Error in determining validity
 }
 
-// Applicative Trait
-//
-pub trait Applicative<'a, T, S> where S: StrategyWithContext<'a, T> + Clone, T: Clone,
-{
-    type Validaty: 'a;
-    type Strategies: 'a;
-    type Output: 'a;
 
-    fn valid(&self, target: &'a T) -> Validaty<Self::Validaty>;
-    fn strategies(&self, target: &'a T) -> Self::Strategies;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // Op Error 
@@ -62,7 +59,40 @@ impl std::fmt::Display for OpError {
     }
 }
 impl Error for OpError {}
+// 
+pub fn error<T >(message: &str) -> Result<T, OpError> {   Err(OpError::new(message))
+}
 
+
+
+// Bind (Monadic Operation)
+pub fn bind<T, U, F>( x: Result<T, OpError>,  y: Result<U, OpError>,  f: F ) -> Result<U, OpError> where F: FnOnce(T, U) -> Result<U, OpError> {
+    match (x, y) { 
+        (Ok(x), Ok(y)) => f(x, y), 
+        (Err(e), _) => Err(e),
+        (_, Err(e)) => Err(e),
+    }
+}
+
+
+
+
+
+
+
+
+// test
+//
+#[cfg(test)]
+mod goals {
+    use super::*;
+// Library Goals.
+// fn test_bind() {
+//     assert_eq!(bind(Ok(1), |x| Ok(x + 1)), Ok(2));
+//     assert_eq!(bind(Ok(1), |x| error("error")), error("error"));
+//     assert_eq!(bind(error("error"), |x| Ok(1)), error("error"));
+// }
+}
 
 
 
