@@ -159,7 +159,14 @@ fn len_rc<T>(list: &ListRc<T>) -> usize {
 
 // --------------------------------------------------------------------------------
 
+use crate::prelude::{StrategyWithContext, StrategyFn};
+use crate::strategy::DynStrategy;
 
+
+type StratList<'a, T, S> = List<dyn for<'list> StrategyWithContext<'list, T> + 'a, S>;
+
+// A List type for strategies with the same target
+type ListStrategy<'a, T> = StratList<'a, T, RcPointerStrategy>;
 
 
 

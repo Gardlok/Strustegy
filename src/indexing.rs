@@ -26,19 +26,19 @@ pub struct IndexerMut<'id, Array: DerefMut<Target=[T]>, T> {
     arr: Array, 
 }
 
-// // The IndexerMut struct can retrieve a mutable reference to an element in the array. 
-// impl<'id, 'a, T> IndexerMut<'id, &'a mut [T], T> {
+// The IndexerMut struct can retrieve a mutable reference to an element in the array.
+impl<'id, 'a, T> IndexerMut<'id, &'a mut [T], T> {
 
-//     // We can get a mutable reference to an element in the array. From there we can get a reference
-//     // to the underlying array. 
-//     pub fn get(&'a mut self, idx: Index<'id>) -> Option<&'a mut T> { 
+    // We can get a mutable reference to an element in the array. From there we can get a reference
+    // to the underlying array. 
+    pub fn get(&'a mut self, idx: Index<'id>) -> Option<&'a mut T> { 
 
-//         match self.arr.get_mut(idx.idx) {
-//             Some(x) => Some(x),
-//             None => None,
-//         }
-//     }
-// }
+        match self.arr.get_mut(idx.idx) {
+            Some(x) => Some(x),
+            None => None,
+        }
+    }
+}
 
 impl<'id, Array: Deref<Target=[T]>, T> Indexer<'id, Array, T> {
     pub(crate) fn id(&self) -> Id<'id> { self._id }

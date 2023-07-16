@@ -8,97 +8,52 @@ use arraydeque::ArrayDeque;
 
 use crate::Validaty;
 use crate::OpError;
+use crate::listing::{HList, HCons, HNil};
+
+use crate::HListGate;
+use crate::hlist;
 
 
 
 
-
-// Applicative Trait
-//
-pub trait Applicative<'a, T, S> where S: StrategyWithContext<'a, T> + Clone, T: Clone,
+// Applicative Trait - This is our Bread and Butter
+// Base trait for all strategies that can be applied to a target.
+pub trait Applicative<'a, T, S> where S: StrategyWithContext<'a, T> + Clone, T: Clone + 'a,
 {
-    type Validaty: 'a;
-    type Strategies: 'a;
-    type Output: 'a;
-
-    fn valid(&self, target: &'a T) -> Validaty<Self::Validaty>;
-    fn strategies(&self, target: &'a T) -> Self::Strategies;
+    type Output;
+    fn bind<F, U>(self, f: F) -> Self::Output where F: FnOnce(&'a [T]) -> U;
+    fn bind_ext<F, U>(self, f: F) -> Self::Output where F: FnOnce(&'a [T]) -> Result<U, OpError>;
 }
-//
-impl<'a, T, S> Applicative<'a, T, S> for S where S: StrategyWithContext<'a, T> + Clone + 'a, T: Clone + 'a,
-{
-    type Validaty = Validaty<'a, T>;
-    type Strategies = HashSet<S>;
-    type Output = Vec<Validaty<'a, T>>;
-
-    fn valid(&self, target: &'a T) -> Validaty<Self::Validaty> {
-        let valid = self.execute(target);
-        if valid { Validaty::Valid(1.0) } else { Validaty::Valid(0.0) }
-    }
-    fn strategies(&self, target: &'a T) -> Self::Strategies {
-        let mut strategies = HashSet::new();
-        // strategies.insert(self.clone());
-        strategies
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-/////////
-// An example of a generic function that takes a closure.
-trait SortStrategy { fn sort(&self, data: &mut [i32]); }
-struct ClosureSortStrategy<F: Fn(&mut [i32])>(F);
-impl<F: Fn(&mut [i32])> SortStrategy for ClosureSortStrategy<F> {
-    fn sort(&self, data: &mut [i32]) { (self.0)(data) }
-}
-fn sort_data<S: SortStrategy>(strategy: &S, data: &mut [i32]) { strategy.sort(data); }
-
-/////
-
-
-
-
-
-pub struct StrategyStage<'a> { buffer: ArrayDeque<Box<dyn Fn(i32) -> i32 + 'a>, 3>, } 
-impl<'a> StrategyStage<'a> {
-    fn lend_func(&mut self, f: Box<dyn Fn(i32) -> i32 + 'a>) {
-        self.buffer.push_back(f);
-    }
-
-    fn call(&self, arg: i32) -> i32 {
-        // Call the function in the buffer with the given argument
-        // This is just a placeholder, you'll need to add error handling and decide what to do when the buffer is empty
-        (self.buffer[0])(arg)
-    }
-}
-///////////
-
-
 
 // Core Strategy Component 
 // 
-pub trait StrategyWithContext<'a, T>
-    { fn execute(&self, target: &'a T) -> bool; }
+pub trait StrategyWithContext<'a, T> { fn execute(&self, target: &'a T) -> bool; }
 //
 impl<'a, T: 'a, S> StrategyWithContext<'a, T> for S
 where
-    S: Fn(&'a T) -> bool
+    S: Fn(&'a T) -> Result<(), OpError>
 {
-    fn execute(&self, target: &'a T) -> bool { self(target) }
+    fn execute(&self, target: &'a T) -> bool {
+        match self(target) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
 }
-//
-
 
 
 // Dynamic Dispatched Strategy
+pub struct Strategy<'a, T> { strategy: Box<dyn StrategyWithContext<'a, T> + 'a> }
+impl<'a, T> Strategy<'a, T> {
+    pub fn new<S>(strategy: S) -> Self where S: StrategyWithContext<'a, T> + 'a,
+    {
+        Self { strategy: Box::new(strategy) }
+    }
+}
+impl<'a, T> StrategyWithContext<'a, T> for Strategy<'a, T> {
+    fn execute(&self, target: &'a T) -> bool { self.strategy.execute(target) }
+}
+
 pub struct StrategyFn<'a, T> { f: Box<dyn Fn(&T, &()) -> bool + 'a> }
 
 impl<'a, T> StrategyFn<'a, T> {
@@ -113,44 +68,21 @@ impl<'a, T> StrategyFn<'a, T> {
     }
 }
 
-// Static Dispatched Strategy
-pub struct StandardStrategy<'a, T, F> where F: Fn(&'a T) -> bool,
+impl<'a, T> StrategyWithContext<'a, T> for StrategyFn<'a, T> {
+    fn execute(&self, target: &'a T) -> bool { self.call(target, &()) }
+}
+
+
+
+
+use crate::inprogenitance::{RcLike, List, Node};
+
+// Type Erased Strategy and Strategy List //
+
+
+pub type DynStrategy<'a, T> = Strategy<'a, T>;
+pub type DynStrategyList<'a, T, C> = List<'a, DynStrategy<'a, T>, T, C>;
+pub fn dyn_strategy<'a, T, S>(strategy: S) -> DynStrategy<'a, T> where S: StrategyWithContext<'a, T> + 'a,
 {
-    strategy: F,
-    phantom: PhantomData<&'a T>,
+    DynStrategy::new(strategy)
 }
-impl<'a, T, F> StrategyWithContext<'a, T> for StandardStrategy<'a, T, F>
-where
-    F: Fn(&'a T) -> bool,
-{
-    fn execute(&self, target: &'a T) -> bool { (self.strategy)(target) }
-}
-impl<'a, T, F> StandardStrategy<'a, T, F> where F: Fn(&'a T) -> bool,
-{ // Todo: add more methods to StandardStrategy supporting user defined strategies
-    pub fn new(strategy: F) -> Self {
-        Self {
-            strategy,
-            phantom: PhantomData,
-        }
-    }
-}
-
-
-
-// Conditionally dispatches strategy based on the result of the condition (bool)
-pub struct ConditionalStrategy<'a, T, S> where S: StrategyWithContext<'a, T> 
-{ 
-    // condition determines which strategy to execute via a boolean
-    // and choose between true_strategy and false_strategy
-    condition: S,
-
-    // true_strategy and false_strategy are executed based on the condition
-    // Generic S is used to allow different strategies to be used
-    true_strategy: S,
-    false_strategy: S,
-
-    target: &'a T,
-}
-
-
-

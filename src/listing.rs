@@ -17,7 +17,7 @@ for HNil { type Item<'a> = Self; }
 // HCons is a type constructor that takes a head and a tail and returns a new list.
 // The tail is itself an HList, and the head can be any type. Recursively, the tail
 // can be an HCons or an HNil. This allows us to construct lists of arbitrary length.
-pub struct HCons<H, T: HList> { head: H, tail: T }
+pub struct HCons<H, T: HList> { pub head: H, pub tail: T }
 impl<H, T: HList> HList
 for HCons<H, T>
 where for<'a> <T as HList>::Item<'a>: HList {
@@ -184,6 +184,10 @@ macro_rules! HListGate {
     ($e:expr) => { $e };  
     ($e:expr) => { hlist!($e) };  
 }
+
+
+
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 

@@ -176,5 +176,3 @@ impl<'a, Ref, T: Clone, RefNode> Clone for Node<Ref, T> where Ref: RcLike<Node<R
     } 
 }
 
-
-
