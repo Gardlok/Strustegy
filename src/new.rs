@@ -1,39 +1,18 @@
 
-
-// New Strategy Idiom (WIP: Still being conceptualized) //
-//////////////////////////////////////////////////////////
-
 use std::rc::Rc;
 use std::ops::Deref;
-use std::ops::DerefMut;
 use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::fmt::{Debug, Formatter};
+use std::fmt::{Display, Error};
+use std::ops::Add;
 
-// An Id used to relate components via lifetimes/ownership
-type Id<'id> = PhantomData<::std::cell::OnceCell<&'id mut ()>>; 
-fn new_id<'id>() -> Id<'id> { Id::default() } 
-fn new_id_ref<'id, 'a>(id: &'a Id<'id>) -> &'a Id<'id> { id }
-fn new_id_mut<'id, 'a>(id: &'a mut Id<'id>) -> &'a mut Id<'id> { id }
-fn new_id_box<'id>(id: Box<Id<'id>>) -> Box<Id<'id>> { id }
-fn new_id_rc<'id>(id: Rc<Id<'id>>) -> Rc<Id<'id>> { id }
-fn new_id_refcell<'id>(id: RefCell<Id<'id>>) -> RefCell<Id<'id>> { id }
-
-
-// A Strategy for the new pointer type 
-trait PtrStrat { type Pointer<T>: Deref<Target=T> + Sized;  
+pub trait PtrStrat { type Pointer<T>: Deref<Target=T> + Sized;  
     fn new<T>(obj: T) -> Self::Pointer<T>;
 }
 
-// A Function that takes a closure and returns the closure
-// This is used to create a new function that has a lifetime
-// that is related to the lifetime of the Id.
-// Example: let my_fn = new_fn::<'id, _>(|| println!("Hello World"));
-fn _fn<'id, F>(f: F) -> F where F: FnMut() + 'id { f }
-
-// List Component - This type is a linked list that holds a type. It is used to
-// create a list of types that are related to each other via lifetimes.
-//
-struct List<T, P: PtrStrat>(P::Pointer<Elem<Ctor<T, P>>>); 
+#[derive(Debug, PartialEq)]
+pub struct List<T, P: PtrStrat>(P::Pointer<Elem<Ctor<T, P>>>); 
 //
 impl<T, P: PtrStrat> Deref for List<T, P> {
     type Target = Elem<Ctor<T, P>>;
@@ -44,24 +23,22 @@ impl<T, P: PtrStrat> Deref for List<T, P> {
     }
 }
 
-// Constructor function for a type that holds a type. Thi Nil constructor is for 
-// provides a way to stop the recursion, and some level of type safety.
-enum Elem<T> {
+#[derive(Debug)]
+pub enum Elem<T> {
     Cons(T),
     Nil
 }
-
-// Constructor function for a type that holds a type. This is the constructor
-// for the Cons type. It takes a type and a pointer to the next Cons type.
-// Example: let my_struct = Ctor::new(5, &my_struct); 
-//
-struct Ctor<T, P: PtrStrat> {
-    cur: T,
-    nex: P::Pointer<Elem<Ctor<T, P>>>,
+impl<T> Elem<T> {
+    pub fn new_cons(t: T) -> Self { Elem::Cons(t) }
+    pub fn new_nil() -> Self { Elem::Nil }
+}
+pub struct Ctor<T, P: PtrStrat> {
+    pub cur: T,
+    pub nex: P::Pointer<Elem<Ctor<T, P>>>,
 }
 //
 impl<T, P: PtrStrat> Ctor<T, P> {
-    fn new(cur: T, nex: P::Pointer<Elem<Ctor<T, P>>>) -> Self {
+    pub fn new(cur: T, nex: P::Pointer<Elem<Ctor<T, P>>>) -> Self {
         Ctor { cur, nex }
     }
 }
@@ -74,82 +51,77 @@ impl<T, P: PtrStrat> Deref for Ctor<T, P> {
     }
 }
 
-
-// Function Proxy - This type is a proxy for a function. It allows for a function
-// to be passed around without knowing the type of the function, arguments, or
-// return type. 
-//
-trait FuncProxy {
-    type Func<'a, T>: Fn(&'a T) -> T where T: 'a;
+// PartialEq implementation for the Ctor type
+impl<T: PartialEq, P: PtrStrat> PartialEq for Ctor<T, P> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cur == other.cur
+    }
 }
 
-// Call the function by taking the proxy, the function, and the arguments.
-// Example: let _ = call_func(&my_struct, func, &5);
-fn call_func<'a, F: FuncProxy, T>(proxy: &F, func: F::Func<'a, T>, arg: &'a T) -> T {
-    func(arg)
+// PartialEq implementation for the Elem type
+impl<T: PartialEq> PartialEq for Elem<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Elem::Cons(x), Elem::Cons(y)) => x == y,
+            (Elem::Nil, Elem::Nil) => true,
+            _ => false,
+        }
+    }
 }
 
-// Define a proxy for the function. This allows for the function to be
-// passed around without knowing the type of the function.
-// Example: let my_struct = NewFuncProxy1;
-// Example: let func = Box::new(|x: &i32| *x * 2);
-// Example: let result = call_func(&my_struct, func, &5);
-struct NewFuncProxy1;
-impl FuncProxy for NewFuncProxy1 {
-
-    // The function is a trait object that implements the Fn trait. The 'a is a 
-    // lifetime specifier that means that the function must live at least as 
-    // long as the argument.
-    type Func<'a, T> = Box<dyn Fn(&'a T) -> T + 'a> where T: 'a;  
+impl<T: Debug> Debug for ListRcWrapper<T> where Ctor<T, RcPointerStrategy>: Debug {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
 }
 
-//--------------------------------------------------------------------------------
-// A Strategy for the new type - (Rc smart pointer in this case) 
+impl<T: Debug> Debug for Ctor<T, RcPointerStrategy> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ctor {{ cur: {:?}, nex: {:?} }}", self.cur, self.nex)
+    }
+}
+
+impl<T: Clone> Deref for ListRcWrapper<T> {
+    type Target = ListRc<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 // 
-struct RcPointerStrategy;
-impl PtrStrat for RcPointerStrategy { type Pointer<T> = Rc<T>;
+#[derive(Debug, PartialEq)]
+pub struct RcPointerStrategy;
+impl PtrStrat for RcPointerStrategy { type Pointer<T> = Rc<T>; 
     fn new<T>(obj: T) -> Rc<T> {
         Rc::new(obj)
     }
 }
 
-// A List type for the new strategy
-type ListRc<T> = List<T, RcPointerStrategy>;
-//  
-// Constructor function for the list type
+pub type ListRc<T> = List<T, RcPointerStrategy>;
 fn list_rc<T>(cur: T, nex: ListRc<T>) -> ListRc<T> {
     List(Rc::new(Elem::Cons(Ctor { cur, nex: nex.0 })))
 }
 // Get the head of the list
 //
-// This function is recursive and uses pattern matching to get the head of the list.
+// 
 fn head_rc<T>(list: &ListRc<T>) -> Option<&T> {
-    // To dereference the pointer, we use the deref method from the Deref trait
-    // The deref method is automatically called when we use the * operator
     match &*list.0 {
-        // The head of the list is the first element of the constructor
         Elem::Cons(ctor) => Some(&ctor.cur),
         Elem::Nil => None,
     }
 }
 // Get the tail of the list
 //
-// This function is recursive and uses pattern matching to get the tail of the list.
+//
 fn tail_rc<T>(list: &ListRc<T>) -> Option<ListRc<T>> {
-    // To dereference the pointer, we use the deref method from the Deref trait
-    // The deref method is automatically called when we use the * operator
     match &*list.0 { 
-        // The tail of the list is the tail of the constructor
         Elem::Cons(ctor) => Some(List(ctor.nex.clone())),
         Elem::Nil => None,
     }
 }
 // Get the length of the list
 //
-// This function is recursive and uses pattern matching to get the length of the list.
+//
 fn len_rc<T>(list: &ListRc<T>) -> usize {
-    // To dereference the pointer, we use the deref method from the Deref trait
-    // The deref method is automatically called when we use the * operator
     match &*list.0 { 
         // The length of the list is the length of the tail plus one
         Elem::Cons(ctor) => 1 + len_rc(&List(ctor.nex.clone())),
@@ -157,32 +129,242 @@ fn len_rc<T>(list: &ListRc<T>) -> usize {
     }
 }
 
+// Apply a function to each element of the list and return boolean if all elements
+// return true.
+//
+// This function is recursive and uses pattern matching to apply a function to each
+// element of the list and return boolean if all elements return true.
+fn all_rc<T>(list: &ListRc<T>, func: impl Fn(&T) -> bool) -> bool {
+    match &*list.0 { 
+        // The purpose of the all function is to return true if the function returns
+        // true for the head and the all function returns true for the tail.
+        // Example: all(&List(Cons(Ctor { cur: 1, nex: Cons(Ctor { cur: 2, nex: Nil }) })), |x| *x > 0) == true
+        Elem::Cons(ctor) => func(&ctor.cur) && all_rc(&List(ctor.nex.clone()), func),
+        Elem::Nil => true,
+    }
+}
+
+// Apply a function to each element of the list and return boolean if any element
+// returns true.
+//
+// If any element returns true.
+fn any_rc<T>(list: &ListRc<T>, func: impl Fn(&T) -> bool) -> bool {
+    match &*list.0 { 
+        Elem::Cons(ctor) => func(&ctor.cur) || any_rc(&List(ctor.nex.clone()), func),
+        Elem::Nil => false,
+    }
+}
+
+// Apply a function to each element
+//
+// Recursively apply a function to each element of the list and return a new list.
+fn map_rc<T, U>(list: &ListRc<T>, func: impl Fn(&T) -> U) -> ListRc<U> {
+    match &*list.0 { 
+        // The map function returns a new list with the head of the list mapped
+        // to the function and the tail of the list mapped to the function.
+        Elem::Cons(ctor) => list_rc(func(&ctor.cur), map_rc(&List(ctor.nex.clone()), func)),
+        Elem::Nil => List(Rc::new(Elem::Nil)),
+    }
+}
+
+// Append two lists together.
+//
+// This function is recursive and uses pattern matching to append two lists together.
+fn append_rc<T: Clone>(list1: &ListRc<T>, list2: &ListRc<T>) -> ListRc<T> {
+    match &*list1.0 { 
+        // The append function returns a new list with the head of the first list
+        // and the tail of the first list appended to the second list.
+        Elem::Cons(ctor) => list_rc(ctor.cur.clone(), append_rc(&List(ctor.nex.clone()), list2)),
+        Elem::Nil => clone_rc(list2),
+    }
+}
+
+// create a list from a vector
+//
+fn from_vec_rc<T: Clone>(vec: Vec<T>) -> ListRc<T> {
+    match vec.len() {
+        0 => List(Rc::new(Elem::Nil)),
+        _ => list_rc(vec[0].clone(), from_vec_rc(vec[1..].to_vec())),
+    }
+}
+
+// create a vector from a list
+//
+fn to_vec_rc<T: Clone>(list: &ListRc<T>) -> Vec<T> {
+    match &*list.0 {
+        Elem::Cons(ctor) => {
+            let mut vec = to_vec_rc(&List(ctor.nex.clone()));
+            vec.insert(0, ctor.cur.clone());
+            vec
+        }
+        Elem::Nil => vec![],
+    }
+}
+
+// Clone a list using Rc
+//
+fn clone_rc<T: Clone>(list: &ListRc<T>) -> ListRc<T> {
+    match &*list.0 {
+        Elem::Cons(ctor) => list_rc(ctor.cur.clone(), clone_rc(&List(ctor.nex.clone()))),
+        Elem::Nil => List(Rc::new(Elem::Nil)),
+    }
+}
+
+// Count the number of elements in a list that return true for a given function.
+//
+fn count_rc<T: Clone>(list: &ListRc<T>, func: impl Fn(&T) -> bool) -> usize {
+    match &*list.0 {
+        Elem::Cons(ctor) => {
+            let mut count = 0;
+            if func(&ctor.cur) {
+                count += 1;
+            }
+            count += count_rc(&List(ctor.nex.clone()), func);
+            count
+        }
+        Elem::Nil => 0,
+    }
+}
+
+// Filter a list using a given function.
+//
+fn filter_rc<T: Clone>(list: &ListRc<T>, func: impl Fn(&T) -> bool) -> ListRc<T> {
+    match &*list.0 {
+        Elem::Cons(ctor) => {
+            if func(&ctor.cur) {
+                list_rc(ctor.cur.clone(), filter_rc(&List(ctor.nex.clone()), func))
+            } else {
+                filter_rc(&List(ctor.nex.clone()), func)
+            }
+        }
+        Elem::Nil => List(Rc::new(Elem::Nil)),
+    }
+}
+
 // --------------------------------------------------------------------------------
 
-use crate::prelude::{StrategyWithContext, StrategyFn};
-use crate::strategy::DynStrategy;
+#[derive(PartialEq)]
+pub struct ListRcWrapper<T>(ListRc<T>);  
+impl<T: Clone> ListRcWrapper<T> {
+    pub fn new() -> Self {
+        ListRcWrapper(List(Rc::new(Elem::Nil)))
+    }
 
+    // head of the list
+    pub fn head(&self) -> Option<&T> {
+        head_rc(&self.0)
+    }
 
-type StratList<'a, T, S> = List<dyn for<'list> StrategyWithContext<'list, T> + 'a, S>;
+    // Return the tail of the list
+    pub fn tail(&self) -> Option<ListRcWrapper<T>> {
 
-// A List type for strategies with the same target
-type ListStrategy<'a, T> = StratList<'a, T, RcPointerStrategy>;
+        // 1. If the list is not empty, return the tail of the list
+        // 2. If the list is empty, return None
+        if match &*self.0.0 {
+            Elem::Cons(ctor) => true, 
+            Elem::Nil => false,
+        } {
+            // safe to unwrap because of match above
+            Some(ListRcWrapper(tail_rc(&self.0).unwrap())) 
+        } else {
+            None
+        }
+    }
 
+    pub fn len(&self) -> usize {
+        len_rc(&self.0)
+    }
+    pub fn all(&self, func: impl Fn(&T) -> bool) -> bool {
+        all_rc(&self.0, func)
+    }
+    pub fn any(&self, func: impl Fn(&T) -> bool) -> bool {
+        any_rc(&self.0, func)
+    }
+    pub fn map<U>(&self, func: impl Fn(&T) -> U) -> ListRc<U> {
+        map_rc(&self.0, func)
+    }
+    pub fn from_vec(vec: Vec<T>) -> Self {
+        ListRcWrapper(from_vec_rc(vec))
+    }
+    pub fn to_vec(&self) -> Vec<T> {
+        to_vec_rc(&self.0)  
+    }
+    pub fn clone(&self) -> Self {
+        ListRcWrapper(clone_rc(&self.0))
+    }
 
+    // Get a count of the number of elements in the list that return true for the given function.
+    pub fn count(&self, func: impl Fn(&T) -> bool) -> usize {
+        count_rc(&self.0, func)
+    }
 
-// Test Test Test // 
+    // Get a list of the elements in the list that return true for the given function.
+    pub fn filter(&self, func: impl Fn(&T) -> bool) -> ListRcWrapper<T> {
+        ListRcWrapper(filter_rc(&self.0, func))
+    }
 
-// Test the function proxy
-#[test] 
-fn test_my_struct() {
-    let my_struct = NewFuncProxy1;
-    let func = Box::new(|x: &i32| *x * 2);
-    let result = call_func(&my_struct, func, &5);
-    assert_eq!(result, 10);
+}
 
-    let func = Box::new(|x: &i32| *x * 3);
-    let result = call_func(&my_struct, func, &5);
-    assert_eq!(result, 15);
+// Adding lists together
+impl<T: Clone> Add<ListRcWrapper<T>> for ListRcWrapper<T> {
+    type Output = ListRcWrapper<T>;
+    fn add(self, other: ListRcWrapper<T>) -> ListRcWrapper<T> {
+        ListRcWrapper(append_rc(&self.0, &other.0))
+    }
+}
+impl<'a, T: Clone> Add<&ListRcWrapper<T>> for &'a ListRcWrapper<T> {
+    type Output = ListRcWrapper<T>;
+    fn add(self, other: &ListRcWrapper<T>) -> ListRcWrapper<T> {
+        ListRcWrapper(append_rc(&self.0, &other.0))
+    }
+}
+
+// Display
+impl<T: Clone + Display> Display for ListRcWrapper<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "{}", self.to_vec().iter().map(|x| format!("{}", x)).collect::<Vec<String>>().join(", "))
+    }
+}
+
+// from Vec
+impl<T: Clone> From<Vec<T>> for ListRcWrapper<T> {
+    fn from(vec: Vec<T>) -> Self {
+        ListRcWrapper::from_vec(vec)
+    }
+}
+
+// from ListRc
+impl<T: Clone> From<ListRc<T>> for ListRcWrapper<T> {
+    fn from(list: ListRc<T>) -> Self {
+        ListRcWrapper(list)
+    }
+}
+
+// Build a list from a list of lists
+impl<T: Clone> From<Vec<ListRcWrapper<T>>> for ListRcWrapper<T> {
+    fn from(lists: Vec<ListRcWrapper<T>>) -> Self {
+        lists.into_iter().fold(ListRcWrapper::new(), |acc, x| acc + x)
+    }
+}
+
+// -------------------------------------------------------------------------------- //
+
+// Test listRcWrapper
+#[test]
+fn test_list_rc_wrapper() {
+    let list: ListRcWrapper<i32> = ListRcWrapper::from_vec(vec![1, 2, 3, 4, 5]);
+    let list1: ListRcWrapper<i32> = ListRcWrapper::from_vec(vec![2, 4, 6, 8, 10]);
+    let list2: ListRcWrapper<i32> = ListRcWrapper::new();
+    assert_eq!(list2.len(), 0);
+    assert_eq!(list2.head(), None);
+    assert_eq!(list2.tail(), None);
+    assert_eq!(list.len(), 5);
+    assert_eq!(list.head(), Some(&1));
+    assert_eq!(list.tail().expect("tail").len(), 4);
+    assert_eq!(list.all(|x| *x < 6), true);
+    assert_eq!(list.any(|x| *x > 5), false);
+    assert_eq!(list.map(|x| *x * 2), list1.0);
+    assert_eq!(list.to_vec(), vec![1, 2, 3, 4, 5]);
 }
 
 // Test the list
@@ -192,5 +374,47 @@ fn test_list_rc() {
     assert_eq!(head_rc(&list), Some(&1));
     assert_eq!(len_rc(&list), 3);
     assert_eq!(len_rc(&tail_rc(&list).unwrap()), 2);
+}
+
+// Testing Append
+#[test]
+fn test_add() {
+    let list1: ListRcWrapper<i32> = ListRcWrapper::from_vec(vec![1, 2, 3, 4, 5]);
+    let list2: ListRcWrapper<i32> = ListRcWrapper::from_vec(vec![2, 4, 6, 8, 10]);
+    let list3: ListRcWrapper<i32> = ListRcWrapper::from_vec(vec![1, 2, 3, 4, 5, 2, 4, 6, 8, 10]);
+    assert_eq!(&list1 + &list2, list3);
+    assert!(list1 != list2);
+}
+
+// Testing count
+#[test]
+fn test_count() {
+    let list1: ListRcWrapper<i32> = ListRcWrapper::from_vec(vec![1, 2, 3, 4, 5]);
+    assert_eq!(list1.count(|x| *x % 2 == 0), 2);
+    assert_eq!(list1.count(|x| *x % 2 == 1), 3);
+
+}
+
+// Test filter
+#[test]
+fn test_filter() {
+    let list = ListRcWrapper::from_vec(vec![1, 2, 3, 4, 5]);
+    let list2 = list.filter(|x| *x % 2 == 0);
+    assert_eq!(list2.to_vec(), vec![2, 4]);
+}
+
+// Test clone
+#[test]
+fn test_clone() {
+    let list = ListRcWrapper::from_vec(vec![1, 2, 3, 4, 5]);
+    let list2 = list.clone();
+    assert_eq!(list, list2);
+}
+
+// Test display
+#[test]
+fn test_display() {
+    let list = ListRcWrapper::from_vec(vec![1, 2, 3, 4, 5]);
+    assert_eq!(format!("{}", list), "1, 2, 3, 4, 5");
 }
 

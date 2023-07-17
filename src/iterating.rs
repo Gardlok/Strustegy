@@ -12,15 +12,6 @@ pub trait Super<'a> {
 // Generic Associated Type
 pub trait GatItem<'a> { type Item; }
 
-// Gat for Map
-impl<'a, I, F> GatItem<'a> for Map<'a, I, F>
-where
-    I: CExtrator<'a>,
-    F: FnMut(&mut <I as CExtrator<'a>>::Item),
-{
-    type Item = <I as CExtrator<'a>>::Item;
-}
-
 // Lending Iterator
 //                   
 pub trait LendingIterator<'a> { type Item; 
@@ -88,43 +79,25 @@ pub struct Map<'a, I, F> where I: CExtrator<'a>,
     f: &'a F,
 }
 
-pub trait MapTrait<'a> {
-    type Item;
-    type Super: 'a;
-}
-impl<'a, I, F> MapTrait<'a> for Map<'a, I, F> where I: CExtrator<'a>,
-    F: FnMut(&mut <I as CExtrator<'a>>::Item) {
+
+// Gat for Map
+impl<'a, I, F> GatItem<'a> for Map<'a, I, F>
+where
+    I: CExtrator<'a>,
+    F: FnMut(&mut <I as CExtrator<'a>>::Item),
+{
     type Item = <I as CExtrator<'a>>::Item;
-    type Super = <I as CExtrator<'a>>::Super;
-}
-impl<'a, I, F> Map<'a, I, F> where I: CExtrator<'a, Super = ()>,
-    F: FnMut(&mut <I as CExtrator<'a>>::Item) -> <I as CExtrator<'a>>::Super {
-    pub fn new(iter: I, f: &'a F) -> Self { Self { iter, f } }  
-}
-impl<'a, I, F> Deref for Map<'a, I, F> where I: CExtrator<'a>,
-    F: FnMut(&mut <I as CExtrator<'a>>::Item) { 
-    type Target = I;
-    fn deref(&self) -> &Self::Target { &self.iter }
 }
 
-// Map Iterator
-//
-pub fn map<'a, I, F>(iter: I, f: &'a F) -> Map<'a, I, F> where I: CExtrator<'a, Super = ()>,
-    F: FnMut(&mut <I as CExtrator<'a>>::Item) {
-    Map::new(iter, f)
+// Super for Map
+impl<'a, I, F> Super<'a> for Map<'a, I, F>
+where
+    I: CExtrator<'a>,
+    F: FnMut(&mut <I as CExtrator<'a>>::Item),
+{
+    type Super = I::Gats;
+
+    fn super_(&'a self) -> &'a Self::Super {
+        self.iter.super_()
+    }
 }
-pub fn map2<'a, I, F>(iter: I, f: &'a F) -> Map<'a, I, F> where I: CExtrator<'a, Super = ()>,
-    F: FnMut(&mut <I as CExtrator<'a>>::Item) -> <I as CExtrator<'a>>::Super {
-    Map::new(iter, f)
-}
-
-
-
-
-
-
-
-
-
-
-

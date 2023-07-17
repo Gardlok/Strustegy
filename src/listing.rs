@@ -61,9 +61,6 @@ impl<H, T: HList> HListOps for HListEnum<H, T> {
     }
 }
 
-// A function that takes an HListable and returns an HList, which is the HListable's Output type.
-fn _hlist<'a, T: HList + HListable<'a, Output = T>>(v: T) -> <T as HListable<'a>>::Output { v }  
-
 pub struct HCons_<H, T: HList> { head: H, tail: T }
 impl<H, T: HList> HList for HCons_<H, T> where for<'a> <T as HList>::Item<'a>: HList {
     type Item<'a> = HCons_<H, <T as HList>::Item<'a>>;
@@ -79,24 +76,6 @@ impl<'a, H, T> HListable<'a> for Head_<H, T> { type Output = H; }
 
 struct Tail_<H, T>(PhantomData<(H, T)>);
 impl<'a, H, T> HListable<'a> for Tail_<H, T> { type Output = T; }
-
-
-
-// HListable trait for HCons_ and HNil_. 
-impl<'a, H, T: HList + HListable<'a, Output = T>> HListable<'a> for HCons_<H, T> {
-    type Output = HListEnum<H, T>;
-}
-
-// HListable trait for HNil. 
-impl<'a> HListable<'a> for HNil_ {
-    type Output = HListEnum<HNil, HNil>;
-}
-
-// HListable trait for HCons.
-impl<'a, H, T: HList + HListable<'a, Output = T>> HListable<'a> for HCons<H, T> {
-    type Output = HListEnum<H, T>;
-}
-
 
 // HListEnum is a type constructor that returns a new list. 
 pub enum HListEnum<H, T: HList> { HCons(H, T), HNil }  
@@ -119,11 +98,19 @@ impl<H, T: HList> HList for HListEnum<H, T> where for<'a> <T as HList>::Item<'a>
 impl<'a, H, T> HListable<'a> for HCons<H, T> where for<'b> <T as HList>::Item<'b>: HList, T: HList {
     type Output = HListEnum<H, <T as HList>::Item<'a>>;
 }
+// HListable trait for HCons_ and HNil_. 
+impl<'a, H, T: HList + HListable<'a, Output = T>> HListable<'a> for HCons_<H, T> {
+    type Output = HListEnum<H, T>;
+}
 
-// HLEval is a trait that provides evaluation of HLists. 
-pub trait HLEval<'a> {
-    type TypeCtor: HList;
-    fn eval(&self) -> <Self::TypeCtor as HListable<'a>>::Output where <Self as HLEval<'a>>::TypeCtor: HListable<'a>;
+// HListable trait for HNil. 
+impl<'a> HListable<'a> for HNil_ {
+    type Output = HListEnum<HNil, HNil>;
+}
+
+// HListable trait for HCons.
+impl<'a, H, T: HList + HListable<'a, Output = T>> HListable<'a> for HCons<H, T> {
+    type Output = HListEnum<H, T>;
 }
 
 // HListIter is a trait that provides iteration over HLists. Providing an iterator for HLists allows us to use them in for loops.
@@ -166,26 +153,16 @@ pub trait HListFilter<'a, A> {
     fn filter(&self, arg: &'a A) -> <Self::TypeCtor as HListable<'a>>::Output where <Self as HListFilter<'a, A>>::TypeCtor: HListable<'a>;
 }
 
-// Macros //
 
 
-// hlist macro
+
+// hlist macro // 
 #[macro_export]
 macro_rules! hlist {
     () => { HNil };
     ($head:expr) => { HCons { head: $head, tail: HNil } };
     ($head:expr, $($tail:expr),+) => { HCons { head: $head, tail: hlist!($($tail),+) } };
 }
-
-// Macro HListGate is a macro that allows us to use HLists in functions that take a type that implements HListable.
-// If the expression is an HList, return it. If the expression is not an HList, wrap it in an HList.
-#[macro_export]
-macro_rules! HListGate {
-    ($e:expr) => { $e };  
-    ($e:expr) => { hlist!($e) };  
-}
-
-
 
 
 

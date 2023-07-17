@@ -1,6 +1,4 @@
 
-
-
 use std::error::Error;
 
 mod inprogenitance;
@@ -10,47 +8,7 @@ mod indexing;
 mod listing;
 mod new;
 
-use crate::strategy::{StrategyWithContext};
-
 mod test;
-
-
-
-
-// Validaty 
-// Ah, the Validaty type. This is the type that is returned by the valid method of the Applicative trait.
-// It is an enum with three variants:
-// Valid: The strategy is valid for the target at x% confidence. (based on a strategy's result composition)
-// Unknown: The strategy is not yet determined to be valid or invalid.
-// Error: An error occurred while determining the validity of the strategy. (Todo: add error handling as a strategy/hlist)
-//
-#[derive(Clone)]
-pub enum Validaty<'a, T> {
-    Valid(f32),        // ratio of valid progenies to total progenies
-    Unknown(&'a [T]),  // Not yet determined and initial stage for target
-    Error(OpError),    // Error in determining validity
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -167,12 +125,9 @@ mod prelude {
     pub use crate::indexing::*;
     pub use crate::listing::*;
     pub use crate::new::*;
-    pub use crate::Validaty;
     pub use crate::OpError;
     pub use crate::error;
     pub use crate::bind;
     pub use crate::bindExt;
 }
-
-
 
