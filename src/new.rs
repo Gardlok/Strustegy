@@ -392,7 +392,6 @@ fn test_count() {
     let list1: ListRcWrapper<i32> = ListRcWrapper::from_vec(vec![1, 2, 3, 4, 5]);
     assert_eq!(list1.count(|x| *x % 2 == 0), 2);
     assert_eq!(list1.count(|x| *x % 2 == 1), 3);
-
 }
 
 // Test filter

@@ -71,6 +71,8 @@ impl<'a, T> Cleanup<'a> for &'a T { fn cleanup(&'a mut self) {} }   //
 //////////////////////////////////////////////////////////////////////
 
 
+
+
 // Map 
 pub struct Map<'a, I, F> where I: CExtrator<'a>,
     F: FnMut(&mut <I as CExtrator<'a>>::Item),
