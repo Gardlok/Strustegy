@@ -47,7 +47,7 @@ fn test_error() {
 
 
 
-// Bind (>>=) - this monad's bind operator can be used to chain operations
+// Bind (>>=) - chain operations
 pub fn bind<T, U, F>( x: Result<T, OpError>,  f: F ) -> Result<U, OpError> where F: FnOnce(T) -> Result<U, OpError> {
     match x { 
         Ok(x) => f(x), 
@@ -73,33 +73,6 @@ fn test_bind() {
     assert_eq!(bind!(Ok(1), |x| Ok(x + 1), |x| error::<i32>("error")), error("error"));
     assert_eq!(bind!(Ok(1), |x| error::<i32>("error"), |x| Ok(x + 1)), error("error"));
 }   
-
-// BindExt (>>=) - this monad's bind operator can be used to chain operations
-pub fn bindExt<T, U, F>( x: Result<T, OpError>,  f: F ) -> Result<U, OpError> where F: FnOnce(T) -> Result<U, OpError> {
-    match x { 
-        Ok(x) => f(x), 
-        Err(e) => Err(e),
-    }
-}
-//
-#[macro_export]
-macro_rules! bindExt {
-    ( $x:expr, $f:expr ) => { bindExt($x, $f) };
-    ( $x:expr, $f:expr, $($rest:expr),+ ) => { bindExt($x, |x| bindExt!( $f(x), $($rest),+ )) };
-}
-#[test]
-fn test_bindExt() {
-    assert_eq!(bindExt!(Ok(1), |x| Ok(x + 1)), Ok(2));
-    assert_eq!(bindExt!(Ok(1), |x| error::<i32>("error")), error("error"));
-    let x: Result<i32, OpError> = Ok(1);
-    let y: Result<i32, OpError> = Ok(2);
-    assert_eq!(bindExt!(x, |x| bindExt!(y, |y| Ok(x + y))), Ok(3));
-    assert_eq!(bindExt!(error::<i32>("error"), |x| Ok(x + 1)), error("error"));
-
-    assert_eq!(bindExt!(Ok(1), |x| Ok(x + 1), |x| Ok(x + 1)), Ok(3));
-    assert_eq!(bindExt!(Ok(1), |x| Ok(x + 1), |x| error::<i32>("error")), error("error"));
-    assert_eq!(bindExt!(Ok(1), |x| error::<i32>("error"), |x| Ok(x + 1)), error("error"));
-}
 
 
 

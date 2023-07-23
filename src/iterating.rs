@@ -1,41 +1,10 @@
 
-use std::ops::Deref;
+// use std::ops::Deref;
 
 
-// Super Trait
-pub trait Super<'a> {
-    type Super: 'a;
-    
-    fn super_(&'a self) -> &'a Self::Super;  
-}
 
-// Generic Associated Type
-pub trait GatItem<'a> { type Item; }
 
-// Lending Iterator
-//                   
-pub trait LendingIterator<'a> { type Item; 
-    // In this case, we are returning a &'a mut T that is a field of the Map. Because of this,
-    // it will be dropped when the Map struct is dropped. Therefore, the &'a mut T does not
-    // outlive the Box<T>. Drop cleanup, just in case.
-    fn next(&mut self, f: &'a dyn Fn(&mut Self, &mut Self::Item)) -> Option<Self::Item>;  
-}
-//
-pub trait IntoCExtrator<'a> {
-    type Item;
-    type IntoIter: CExtrator<'a, Item = Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter; 
-}
-// Iter for ContextExtendingIterator
-//
-pub trait CExtratorIter<'a> {  
-    type Item;  
-    type Iter: CExtrator<'a, Item = Self::Item>;
-
-    fn iter(&'a self) -> Self::Iter;
-}
-// ContextExtendingIterator - 
+// ContextExtendingIterator
 //
 pub trait CExtrator<'a>: 'a + for<'b> Super<'b, Super = Self::Gats> + for<'b> GatItem<'b>  
 where Self: Sized,
@@ -71,7 +40,34 @@ impl<'a, T> Cleanup<'a> for &'a T { fn cleanup(&'a mut self) {} }   //
 //////////////////////////////////////////////////////////////////////
 
 
+// Super - The trait that is implemented by the trait that is being extended.
+pub trait Super<'a> { type Super: 'a;
+    
+    fn super_(&'a self) -> &'a Self::Super;  
+}
 
+// Generic Associated Type (GAT) - Bound to the lifetime of the trait object.
+pub trait GatItem<'a> { type Item; }
+
+pub trait IntoCExtrator<'a> {
+
+    // Two associated types are declared here. The first is Item, which is the type of the
+    // iterator's elements. The second is IntoIter, which is the type of the iterator itself,
+    // binding the iterator to the lifetime of the trait object.
+    type Item;
+    type IntoIter: CExtrator<'a, Item = Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter; 
+}
+
+// Iter for ContextExtendingIterator is implemented for any type that implements IntoIterator. 
+//
+pub trait CExtratorIter<'a> {  
+    type Item;  
+    type Iter: CExtrator<'a, Item = Self::Item>;
+
+    fn iter(&'a self) -> Self::Iter;
+}
 
 // Map 
 pub struct Map<'a, I, F> where I: CExtrator<'a>,
@@ -80,7 +76,6 @@ pub struct Map<'a, I, F> where I: CExtrator<'a>,
     iter: I,
     f: &'a F,
 }
-
 
 // Gat for Map
 impl<'a, I, F> GatItem<'a> for Map<'a, I, F>
@@ -103,3 +98,5 @@ where
         self.iter.super_()
     }
 }
+
+
