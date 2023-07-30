@@ -75,31 +75,6 @@ fn test_bind() {
 }   
 
 
-
-
-
-
-
-
-
-
-
-
-
-// test
-//
-#[cfg(test)]
-mod goals {
-    use super::*;
-// Library Goals.
-// fn test_bind() {
-//     assert_eq!(bind(Ok(1), |x| Ok(x + 1)), Ok(2));
-//     assert_eq!(bind(Ok(1), |x| error("error")), error("error"));
-//     assert_eq!(bind(error("error"), |x| Ok(1)), error("error"));
-// }
-}
-
-
 mod prelude {
     pub use crate::inprogenitance::*;
     pub use crate::iterating::*;
@@ -110,6 +85,5 @@ mod prelude {
     pub use crate::OpError;
     pub use crate::error;
     pub use crate::bind;
-    pub use crate::bindExt;
 }
 

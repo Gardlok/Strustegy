@@ -1,18 +1,21 @@
 
 use std::marker::PhantomData;
+use std::ops::{Add, Sub, Mul, Div, Neg};
 
-// HListable is a trait that allows us to convert a tuple into an HList.  
-pub trait HListable<'a> { type Output; }
-impl<'a, T> HListable<'a> for &'a T { type Output = T; }
-impl<'a, T> HListable<'a> for &'a mut T { type Output = T; }
-
-// Heterogeneous list of type constructors. 
-pub trait HList { type Item<'a>; }
-
-// HNil is a terminator for HLists. It has no fields. 
-pub struct HNil;
-impl HList 
-for HNil { type Item<'a> = Self; }
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+// A linked list of type constructors with a Head end followed by a trailing Tail.
+// HList, similar to linked lists, but instead of having a single element at each node, they have a 
+// type constructor that can be used to construct a list of any length.  The type constructor HCons
+// takes a head and a tail and returns a new list. The tail is itself an HList, and the head can be
+// any type. Recursively, the tail can be an HCons or an HNil. 
+// 
+// This allows us to construct lists of arbitrary length and type.
+//
+// The trait HListOps provides functions for accessing and manipulating HLists. The head and tail 
+// functions allow us to access the head and tail of an HList, respectively. The uncons and cons 
+// functions allows to deconstruct and construct HLists, respectively.
+// pub trait HList { type Item<'a>; }
+pub trait HList { type Item<'a>: HList; }
 
 // HCons is a type constructor that takes a head and a tail and returns a new list.
 // The tail is itself an HList, and the head can be any type. Recursively, the tail
@@ -21,12 +24,24 @@ pub struct HCons<H, T: HList> { pub head: H, pub tail: T }
 impl<H, T: HList> HList
 for HCons<H, T>
 where for<'a> <T as HList>::Item<'a>: HList {
-    // The Item type is an HCons of the head and the tail's Item type.
-    // This is the recursive definition of an HList. 
     type Item<'a> = HCons<H, <T as HList>::Item<'a>>;
 }
 
-// HListOps is a trait that provides common operations on HLists. 
+// cons
+pub trait HListCons<'a, H> { type TypeCtor: HList;
+    fn cons(self, head: H) -> <Self::TypeCtor as HListable<'a>>::Output where <Self as HListCons<'a, H>>::TypeCtor: for<'b> HListable<'a>;
+}
+
+pub struct HNil;
+impl HList 
+for HNil { type Item<'a> = Self; }
+
+// Provides a type constructor for HLists.
+pub trait HListable<'a> { type Output; }
+impl<'a, T> HListable<'a> for &'a T { type Output = T; }
+impl<'a, T> HListable<'a> for &'a mut T { type Output = T; }
+
+
 pub trait HListOps {
     type Head;
     type Tail: HList;
@@ -34,127 +49,199 @@ pub trait HListOps {
     fn head(&self) -> &Self::Head;
     fn tail(&self) -> &Self::Tail;
 }
-
-// For HCons, the head is the first element of the list and the tail is the rest of the list.
 impl<H, T: HList> HListOps for HCons<H, T> {
     type Head = H;
     type Tail = T;
     fn head(&self) -> &Self::Head { &self.head }
     fn tail(&self) -> &Self::Tail { &self.tail }
 }
-
-// For HNil, the head and tail are both HNil.
 impl<H, T: HList> HListOps for HListEnum<H, T> {
     type Head = H;
     type Tail = T;
     fn head(&self) -> &Self::Head {
         match self {
             HListEnum::HCons(h, _) => h,
-            HListEnum::HNil => panic!(),
+            HListEnum::HNil => panic!(),  // This should never happen
         }
     }
     fn tail(&self) -> &Self::Tail {
         match self {
             HListEnum::HCons(_, t) => t,
-            HListEnum::HNil => panic!(),
+            HListEnum::HNil => panic!(),  // This should never happen. TODO: Is there a better way to handle this?
         }
     }
 }
 
-pub struct HCons_<H, T: HList> { head: H, tail: T }
-impl<H, T: HList> HList for HCons_<H, T> where for<'a> <T as HList>::Item<'a>: HList {
-    type Item<'a> = HCons_<H, <T as HList>::Item<'a>>;
+pub trait HListOpsMut {
+    type Head;
+    type Tail: HList;
+
+    fn head_mut(&mut self) -> &mut Self::Head;
+    fn tail_mut(&mut self) -> &mut Self::Tail;
+}
+impl<H, T: HList> HListOpsMut for HCons<H, T> {
+    type Head = H;
+    type Tail = T;
+    fn head_mut(&mut self) -> &mut Self::Head { &mut self.head }
+    fn tail_mut(&mut self) -> &mut Self::Tail { &mut self.tail }
 }
 
-// HNil (HList terminator)
-pub struct HNil_;
-impl HList for HNil_ { type Item<'a> = Self; }
+// uncons
+pub trait HListUncons {
+    type Head;
+    type Tail: HList;
 
-// Identifiers for HList operations
-struct Head_<H, T>(PhantomData<(H, T)>);  
-impl<'a, H, T> HListable<'a> for Head_<H, T> { type Output = H; }
+    fn uncons(self) -> (Self::Head, Self::Tail);
+}
+impl<H, T: HList> HListUncons for HCons<H, T> {
+    type Head = H;
+    type Tail = T;
+    fn uncons(self) -> (Self::Head, Self::Tail) { (self.head, self.tail) }
+}
 
-struct Tail_<H, T>(PhantomData<(H, T)>);
-impl<'a, H, T> HListable<'a> for Tail_<H, T> { type Output = T; }
+// HConsTuple is a type constructor that takes a head and a tail and returns a new list.
+pub struct HConsTuple<H, T: HList>(pub H, pub T);
+impl<H, T: HList> HList for HConsTuple<H, T> where for<'a> <T as HList>::Item<'a>: HList {
+    type Item<'a> = HConsTuple<H, <T as HList>::Item<'a>>;
+}
 
-// HListEnum is a type constructor that returns a new list. 
+// Enumerated HList
 pub enum HListEnum<H, T: HList> { HCons(H, T), HNil }  
 struct HListEnum_<H, T>(PhantomData<(H, T)>);
-impl<'a, H, T> HListable<'a> for HListEnum_<H, T> where for<'b> <T as HList>::Item<'b>: HList, T: HList {
-     
-    type Output = HListEnum<H, <T as HList>::Item<'a>>;
+impl<'a, H, T> HListable<'a> for HListEnum_<H, T> where for<'b> <T as HList>::Item<'b>: HList, T: HList { 
+    type Output = HListEnum<H, <T as HList>::Item<'a>>; 
 }
-
-// HListable trait for HNil. This allows us to use HNil in functions that take a type that implements HListable.
 impl<'a> HListable<'a> for HNil {
     type Output = HListEnum<HNil, HNil>;
 }
-// To implement HList for HListEnum, we need to implement the Item type. 
-impl<H, T: HList> HList for HListEnum<H, T> where for<'a> <T as HList>::Item<'a>: HList {
-    type Item<'a> = HListEnum<H, <T as HList>::Item<'a>>;
-}   
 
-// HListable trait for HCons. This allows us to use HCons in functions that take a type that implements HListable.
-impl<'a, H, T> HListable<'a> for HCons<H, T> where for<'b> <T as HList>::Item<'b>: HList, T: HList {
-    type Output = HListEnum<H, <T as HList>::Item<'a>>;
-}
-// HListable trait for HCons_ and HNil_. 
-impl<'a, H, T: HList + HListable<'a, Output = T>> HListable<'a> for HCons_<H, T> {
-    type Output = HListEnum<H, T>;
-}
-
-// HListable trait for HNil. 
-impl<'a> HListable<'a> for HNil_ {
-    type Output = HListEnum<HNil, HNil>;
-}
-
-// HListable trait for HCons.
-impl<'a, H, T: HList + HListable<'a, Output = T>> HListable<'a> for HCons<H, T> {
-    type Output = HListEnum<H, T>;
-}
-
-// HListIter is a trait that provides iteration over HLists. Providing an iterator for HLists allows us to use them in for loops.
-// The iterator is generic over the lifetime of the HList. This allows us to iterate over HLists that contain references.
-// The iterator is also generic over the type of the HList. This allows us to iterate over HLists that contain different types.
-// Finally, the iterator is generic over the type of the output. This allows us fiddle with the output type of the iterator and
-// return a different type than the HList itself. 
-pub trait HListIter<'a> {
-    type TypeCtor: HList;
+// Allow us to use the iterator functions such as map, fold, filter, etc. on HLists.
+pub trait HListIter<'a> { type TypeCtor: HList;
     fn next(&mut self) -> Option<<Self::TypeCtor as HListable<'a>>::Output> where <Self as HListIter<'a>>::TypeCtor: HListable<'a>; 
 }
-
-// to be iterable, an HList must be able to return an iterator.
-pub trait HListIntoIter<'a> {
-    type TypeCtor: HList;
+pub trait HListIntoIter<'a> { type TypeCtor: HList;
     fn into_iter(self) -> <Self::TypeCtor as HListable<'a>>::Output where <Self as HListIntoIter<'a>>::TypeCtor: HListable<'a>;
 }
 
-// HListMap is a trait that provides mapping over HLists. Providing a map function for HLists allows us to apply functions to 
-// each element of the list. The map function is generic as similar to the iterator, difference being that the map function
-// takes a function as an argument.
-pub trait HListMap<'a, A> {
-    type TypeCtor: HList;
-    fn map(&self, arg: &'a A) -> <Self::TypeCtor as HListable<'a>>::Output where <Self as HListMap<'a, A>>::TypeCtor: HListable<'a>;
+// HListMapper: Apply a function to each element of an HList.
+// Example:
+// impl Mapper for i32 {
+//     type Output = i32;
+//     fn map(self) -> Self::Output {
+//         self + 1
+//     }
+// }
+// And then we can use it like this:
+// let hlist = HCons { head: 1, tail: HCons { head: 2, tail: HCons { head: 3, tail: HNil } } };
+// let hlist = hlist.map();
+// assert_eq!(hlist.head, 2);
+// assert_eq!(hlist.tail.head, 3);
+// assert_eq!(hlist.tail.tail.head, 4);
+// assert_eq!(hlist.tail.tail.tail, HNil);
+//
+// Note that the Mapper trait is not limited to functions that take a single argument. It can be used with any function that implements
+// the Mapper trait. For example, we can use it with a function that takes two arguments:
+// fn add(a: i32, b: i32) -> i32 {
+//     a + b
+// }
+// impl Mapper for i32 {
+//     type Output = i32;
+//     fn map(self) -> Self::Output {
+//         add(self, 1)
+//     }
+// }
+// And then we can use it like this:
+// let hlist = HCons { head: 1, tail: HCons { head: 2, tail: HCons { head: 3, tail: HNil } } };
+// let hlist = hlist.map(); 
+// assert_eq!(hlist.head, 2);
+// assert_eq!(hlist.tail.head, 3);
+// assert_eq!(hlist.tail.tail.head, 4);
+// assert_eq!(hlist.tail.tail.tail, HNil);
+//
+pub trait Mapper {
+    type Output;
+    fn map(self) -> Self::Output;
+}
+pub trait HListMapper {
+    type Output: HList;
+    fn map(self) -> Self::Output;
+}
+impl HListMapper for HNil {
+    type Output = HNil;
+    fn map(self) -> Self::Output {
+        HNil
+    }
+}
+impl<H, T> HListMapper for HCons<H, T>
+where
+    H: Mapper,
+    T: HList + HListMapper,
+{
+    type Output = HCons<H::Output, T::Output>;
+    fn map(self) -> Self::Output {
+        HCons {
+            head: self.head.map(),
+            tail: self.tail.map(),
+        }
+    }
 }
 
-// HListFold is a trait that provides folding over HLists. Providing a fold function for HLists allows us to apply functions to
-// each element of the list and accumulate the result. The fold function is generic as similar to the iterator, difference being
-// that the fold function takes a function as an argument and an initial value, which is used as the accumulator.
-pub trait HListFold<'a, A, B> {
-    type TypeCtor: HList;
-    fn fold(&self, arg: &'a A, init: B) -> B where <Self as HListFold<'a, A, B>>::TypeCtor: HListable<'a>;
+// HlistFoler: Apply a function to each element of an HList.
+// Example:
+// impl Folder for i32 {
+//     type Output = i32;
+//     fn fold(self, acc: i32) -> Self::Output {
+//         self + acc
+//     }
+// }
+// And then we can use it like this:
+// let hlist = HCons { head: 1, tail: HCons { head: 2, tail: HCons { head: 3, tail: HNil } } };
+// let hlist = hlist.fold(0);
+// assert_eq!(hlist, 6);
+//
+// Note that the Folder trait is not limited to functions that take a single argument. It can be used with any function that implements
+// the Folder trait. For example, we can use it with a function that takes two arguments:
+// fn add(a: i32, b: i32) -> i32 {
+//     a + b
+// }
+// impl Folder for i32 {
+//     type Output = i32;
+//     fn fold(self, acc: i32) -> Self::Output {
+//         add(self, acc)
+//     }
+// }
+// And then we can use it like this:
+// let hlist = HCons { head: 1, tail: HCons { head: 2, tail: HCons { head: 3, tail: HNil } } };
+// let hlist = hlist.fold(0);
+// assert_eq!(hlist, 6);
+//
+pub trait Folder {
+    type Output;
+    fn fold(self, acc: Self::Output) -> Self::Output;
 }
-
-// HListFilter is a trait that provides filtering over HLists. Providing a filter function for HLists allows us to apply functions to
-// each element of the list and accumulate the result. The filter function is generic as similar to the iterator, difference being
-// that the filter function takes a function as an argument and an initial value, which is used as the accumulator.
-pub trait HListFilter<'a, A> {
-    type TypeCtor: HList;
-    fn filter(&self, arg: &'a A) -> <Self::TypeCtor as HListable<'a>>::Output where <Self as HListFilter<'a, A>>::TypeCtor: HListable<'a>;
+pub trait HListFolder {
+    type Output;
+    fn fold(self, acc: Self::Output) -> Self::Output;
 }
-
-
-
+impl HListFolder for HNil {
+    type Output = HNil;
+    fn fold(self, acc: Self::Output) -> Self::Output {
+        HNil
+    }
+}
+impl<H, T> HListFolder for HCons<H, T>
+where
+    H: Folder,
+    T: HList + HListFolder, <T as HListFolder>::Output: HList
+{
+    type Output = HCons<H::Output, T::Output>;
+    fn fold(self, acc: Self::Output) -> Self::Output {
+        HCons {
+            head: self.head.fold(acc.head),
+            tail: self.tail.fold(acc.tail),
+        }
+    }
+}
 
 // hlist macro // 
 #[macro_export]
@@ -164,18 +251,6 @@ macro_rules! hlist {
     ($head:expr, $($tail:expr),+) => { HCons { head: $head, tail: hlist!($($tail),+) } };
 }
 
-
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
 // Integration tests
 #[cfg(test)]
 mod test_integration {
@@ -183,7 +258,7 @@ mod test_integration {
     use std::any::TypeId;
 
     #[test]
-    fn test_hlist() {
+    fn test_basics() {
         let mut hlist = hlist!(0, 1, 2);
         assert_eq!(hlist.head, 0);
         assert_eq!(hlist.tail.head, 1);
@@ -236,59 +311,9 @@ mod test_integration {
         assert_eq!(hlist.tail.tail.tail.tail.tail.tail.tail.tail.head, 8);
         assert_eq!(hlist.tail.tail.tail.tail.tail.tail.tail.tail.tail.head, 9);
     }
-
-}
-
-
-
-
-// Let's test it out
-#[cfg(test)]
-mod test_macro {
-    use super::*;
-
-#[test]
-    fn test_hlist() {
-        let mut hlist = hlist!(0, 1, 2);
-        assert_eq!(hlist.head, 0);
-        assert_eq!(hlist.tail.head, 1);
-        assert_eq!(hlist.tail.tail.head, 2);
-
-        hlist.head = 42;
-        assert_eq!(hlist.head, 42);
-
-        hlist.head = 0;
-        hlist.tail.head = 42;
-        assert_eq!(hlist.head, 0);
-        assert_eq!(hlist.tail.head, 42);
-
-        let mut hlist2 = hlist!(0, "Hello".to_string(), [2]);
-        assert_eq!(hlist2.head, 0);
-        assert_eq!(hlist2.tail.head, "Hello".to_string());
-        assert_eq!(hlist2.tail.tail.head, [2]);
-
-        // anonymous types
-        let mut f = |x: &mut HCons<i32, HCons<String, HCons<[i32; 1], HNil>>>| {
-            x.head = 42;
-            x.tail.head = "Hello".to_string();
-            x.tail.tail.head = [2];
-        };
-
-        f(&mut hlist2);
-        assert!(hlist2.head == 42);
-        assert!(f(&mut hlist2) == ());
-        assert_eq!(hlist2.head + 1, 43);
-        assert_eq!(hlist2.head - 5, 37);
-        assert_eq!(hlist2.head * 2, 84);
-        assert_eq!(hlist2.head / 2, 21);
-        assert_eq!(hlist2.head % 2, 0);
-        assert_eq!(hlist2.head << 1, 84);
-        assert_eq!(hlist2.head >> 1, 21);
-
-    }
     
     #[test]
-    fn test_hlist_nested() {
+    fn test_nestive() {
         let hlist: HCons<u32, HCons<u32, HNil>> = HCons { head: 0, tail: HCons { head: 1, tail: HNil } };
         let hlist: HCons<u32, HCons<u32, HCons<u32, HNil>>> = HCons { head: 2, tail: hlist };
         let hlist: HCons<u32, HCons<u32, HCons<u32, HCons<u32, HNil>>>> = HCons { head: 3, tail: hlist };
@@ -297,4 +322,62 @@ mod test_macro {
         assert_eq!(hlist.tail.tail.head, 0);
         assert_eq!(hlist.tail.tail.tail.head, 1);
     }
+
+    // Uncons and cons additional testing
+    #[test]
+    fn test_uncons() {
+        let hlist = hlist!(0, 1, 2);
+        let (head, tail) = hlist.uncons();
+        assert_eq!(head, 0);
+        assert_eq!(tail.head, 1);
+        assert_eq!(tail.tail.head, 2);
+    }
+    
+
+
+    #[test]
+    fn test_map() {
+
+        impl Mapper for i32 {
+            type Output = i32;
+            fn map(self) -> Self::Output {
+                self + 1
+            }
+        }
+        
+        impl Mapper for f64 {
+            type Output = f64;
+            fn map(self) -> Self::Output {
+                self * 2.0
+            }
+        }
+
+        let hlist: HCons<i32, HCons<f64, HNil>> = hlist!(0, 1.0);
+        let hlist_mapped = hlist.map();
+        assert_eq!(hlist_mapped.head, 1);
+        assert_eq!(hlist_mapped.tail.head, 2.0);
+    }
+
+
+
+#[test]
+fn test_fold() {
+    
+    // Folder implementation for i32
+    impl Folder for i32 {
+        type Output = i32;
+        fn fold(self, acc: Self::Output) -> Self::Output {
+            self + acc
+        }
+    }
+
+    let hlist = hlist!(1, 2, 3);
+    let sum = hlist.fold(0);  // Initial value is 0
+    assert_eq!(sum, 6);
+}
+
+
+
+
+
 }

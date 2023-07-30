@@ -1,8 +1,4 @@
-
-// use std::ops::Deref;
-
-
-
+use std::ops::Deref; // Required for cleanup().
 
 // ContextExtendingIterator
 //
@@ -22,7 +18,7 @@ where Self: Sized,
     {
         // It is unsafe because it is up to the caller to ensure that the &'a mut T does not 
         // outlive the Box<T>. In this case, we are returning a &'a mut T that is a field of the 
-        // Map. Because of this,  it will be dropped when the Map struct is dropped. Therefore, 
+        // Map and it will be dropped when the Map struct is dropped. Therefore, 
         // the &'a mut T does not outlive the Box<T>. Drop cleanup, just in case.
         Box::leak(Box::new(Map { iter: self, f })) 
     }
