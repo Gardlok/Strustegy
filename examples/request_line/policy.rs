@@ -1,6 +1,6 @@
 //! Proof policies and the end-to-end zero-copy parser.
 
-use strustegy::{ByteLen, HCons, HNil, ProofPolicy, Utf8, ValidationError, hlist, hlist_ty, prove};
+use strustegy::{ByteLen, ProofPolicy, Utf8, ValidationError, hlist, hlist_pat, hlist_ty, prove};
 
 use crate::grammar::{
     ExactTokenCount, ParsedMethod, ParsedPath, ParsedSegments, ParsedVersion, Token,
@@ -49,46 +49,18 @@ impl ProofPolicy<str> for RequestLinePolicy {
 pub fn parse_request<'input>(
     input: &'input [u8],
 ) -> Result<ProvenRequest<'input>, ValidationError> {
-    let HCons {
-        head: line,
-        tail: HCons {
-            head: byte_len,
-            tail: HNil,
-        },
-    } = prove::<Utf8RequestLinePolicy, _>(input)?.into_evidence();
+    let hlist_pat![line, byte_len] = prove::<Utf8RequestLinePolicy, _>(input)?.into_evidence();
 
-    let HCons {
-        head: token_count,
-        tail:
-            HCons {
-                head: raw_method,
-                tail:
-                    HCons {
-                        head: raw_path,
-                        tail:
-                            HCons {
-                                head: raw_version,
-                                tail:
-                                    HCons {
-                                        head: method,
-                                        tail:
-                                            HCons {
-                                                head: path,
-                                                tail:
-                                                    HCons {
-                                                        head: version,
-                                                        tail:
-                                                            HCons {
-                                                                head: segments,
-                                                                tail: HNil,
-                                                            },
-                                                    },
-                                            },
-                                    },
-                            },
-                    },
-            },
-    } = prove::<RequestLinePolicy, _>(line)?.into_evidence();
+    let hlist_pat![
+        token_count,
+        raw_method,
+        raw_path,
+        raw_version,
+        method,
+        path,
+        version,
+        segments,
+    ] = prove::<RequestLinePolicy, _>(line)?.into_evidence();
 
     debug_assert_eq!(raw_method, method.as_str());
     debug_assert_eq!(raw_path, path.as_str());

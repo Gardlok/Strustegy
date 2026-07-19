@@ -11,6 +11,21 @@ fn macros_and_cons_construct_the_same_shape() {
 }
 
 #[test]
+fn pattern_macro_destructures_owned_and_borrowed_lists() {
+    let hlist_pat![number, mut name, _] = hlist![7_u8, String::from("rose"), true];
+    name.push('!');
+
+    assert_eq!(number, 7);
+    assert_eq!(name, "rose!");
+
+    let values = hlist![10_i32, String::from("strustegy")];
+    let hlist_pat![borrowed_number, borrowed_name] = values.refs();
+
+    assert_eq!(*borrowed_number, 10);
+    assert_eq!(borrowed_name.as_str(), "strustegy");
+}
+
+#[test]
 fn length_and_type_shape_are_static() {
     type Values = hlist_ty![i32, String, bool];
 

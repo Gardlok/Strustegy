@@ -224,6 +224,32 @@ macro_rules! hlist {
     };
 }
 
+/// Destructure an HList using ordinary Rust patterns.
+///
+/// ```
+/// use strustegy::{hlist, hlist_pat};
+///
+/// let hlist_pat![number, mut name, _] =
+///     hlist![7_u8, String::from("rose"), true];
+/// name.push('!');
+///
+/// assert_eq!(number, 7);
+/// assert_eq!(name, "rose!");
+/// ```
+#[macro_export]
+macro_rules! hlist_pat {
+    () => {
+        $crate::hlist::HNil
+    };
+
+    ($head:pat $(, $tail:pat)* $(,)?) => {
+        $crate::hlist::HCons {
+            head: $head,
+            tail: $crate::hlist_pat![$($tail),*],
+        }
+    };
+}
+
 /// Construct an HList type.
 #[macro_export]
 macro_rules! hlist_ty {
