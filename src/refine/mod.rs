@@ -80,6 +80,10 @@ pub trait ProofPolicy<Input: ?Sized> {
 }
 
 /// Execute a policy's refiners and return input-bound heterogeneous evidence.
+///
+/// The explicit return type preserves the exact GAT-computed evidence HList
+/// associated with the selected proof policy.
+#[allow(clippy::type_complexity)]
 pub fn prove<'input, Policy, Input>(
     input: &'input Input,
 ) -> Result<
