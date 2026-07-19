@@ -14,3 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Strategy composition with `Compose` and `.then(...)`.
 - HList strategy mapping for owned, shared, and mutable values.
 - Policy-backed validation and non-forgeable `Validated` values.
+- GAT-backed zero-copy `Refine` outputs and HList proof evidence.
+- `Witnessed` borrowed proof values with redacted diagnostics.
+- `FnStrategy` adapters for functions and shared closures.
+- `AsyncStrategy`, async-closure adapters, static async composition, and synchronous strategy lifting.
