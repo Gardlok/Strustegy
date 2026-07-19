@@ -1,0 +1,16 @@
+# Changelog
+
+All notable changes to Strustegy will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project intends to follow semantic versioning once the public API stabilizes.
+
+## [Unreleased]
+
+### Added
+
+- GAT-backed HList shared and mutable views.
+- Static HList indexing.
+- Type-directed `Strategy` abstraction.
+- Strategy composition with `Compose` and `.then(...)`.
+- HList strategy mapping for owned, shared, and mutable values.
+- Policy-backed validation and non-forgeable `Validated` values.

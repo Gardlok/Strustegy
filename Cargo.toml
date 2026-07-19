@@ -1,23 +1,17 @@
 [package]
-name = "Strustegy"
+name = "strustegy"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition = "2024"
+rust-version = "1.85"
+authors = ["Anthony Gardner"]
+description = "Static, type-directed strategy composition for Rust"
+license = "MIT"
+repository = "https://github.com/Gardlok/Strustegy"
+readme = "README.md"
+keywords = ["strategy", "validation", "hlist", "typestate", "functional"]
+categories = ["rust-patterns", "data-structures"]
 
 [dependencies]
-criterion = "*"
-crossbeam = "0.8.2"
-crossbeam-skiplist = "0.1.1"
-quote = "1.0.28"
-rand = "0.8.5"
-regex = "1.8.4"
-syn = "2.0.18"
-rhai = "1.15.1"
-arraydeque = "0.5.1"
 
-[dev-dependencies]
-criterion = "*"
-rayon = "1.5.1"
-
-
+[package.metadata.docs.rs]
+all-features = true
