@@ -31,7 +31,11 @@ impl ValidationError {
 
 impl fmt::Display for ValidationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "validation rule '{}' failed with code '{}'", self.rule, self.code)
+        write!(
+            formatter,
+            "validation rule '{}' failed with code '{}'",
+            self.rule, self.code
+        )
     }
 }
 
@@ -67,7 +71,11 @@ impl ValidationErrors {
 
 impl fmt::Display for ValidationErrors {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "validation failed with {} error(s)", self.errors.len())
+        write!(
+            formatter,
+            "validation failed with {} error(s)",
+            self.errors.len()
+        )
     }
 }
 

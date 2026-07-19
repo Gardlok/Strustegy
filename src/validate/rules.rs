@@ -45,9 +45,10 @@ where
     T: AsRef<str>,
 {
     fn check(&self, value: &T) -> Result<(), ValidationError> {
-        let valid = value.as_ref().bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
-        });
+        let valid = value
+            .as_ref()
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-');
 
         if valid {
             Ok(())

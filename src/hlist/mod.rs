@@ -39,7 +39,6 @@ pub trait HList: Sized {
     fn muts(&mut self) -> Self::Muts<'_>;
 
     /// Prepend a value to this list.
-    #[must_use]
     fn cons<H>(self, head: H) -> HCons<H, Self> {
         HCons { head, tail: self }
     }
