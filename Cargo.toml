@@ -19,3 +19,7 @@ all-features = true
 [[example]]
 name = "project_slug"
 path = "examples/project_slug/main.rs"
+
+[[example]]
+name = "request_line"
+path = "examples/request_line/main.rs"
