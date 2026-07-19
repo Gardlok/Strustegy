@@ -6,7 +6,7 @@ use std::fmt;
 use strustegy::{Validated, ValidationError, ValidationErrors};
 
 /// The static syntactic policy for an owned canonical project slug.
-pub enum ProjectSlugPolicy {}
+pub(crate) enum ProjectSlugPolicy {}
 
 /// A project slug that is both policy-valid and currently available.
 #[derive(Debug)]
