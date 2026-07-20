@@ -23,3 +23,27 @@ path = "examples/project_slug/main.rs"
 [[example]]
 name = "request_line"
 path = "examples/request_line/main.rs"
+
+[[bench]]
+name = "baseline"
+harness = false
+
+[[bench]]
+name = "compile_depth_4"
+path = "benches/compile_depth/depth_4.rs"
+harness = false
+
+[[bench]]
+name = "compile_depth_8"
+path = "benches/compile_depth/depth_8.rs"
+harness = false
+
+[[bench]]
+name = "compile_depth_16"
+path = "benches/compile_depth/depth_16.rs"
+harness = false
+
+[[bench]]
+name = "compile_depth_32"
+path = "benches/compile_depth/depth_32.rs"
+harness = false
