@@ -2,11 +2,11 @@
 
 use strustegy::{
     ByteLen, MaxBytes, NonEmpty, Policy, ProofPolicy, Refine, Rule, Strategy,
-    TrimmedAsciiIdentifier, Utf8, Validated, ValidationError, hlist, hlist_ty, prove, strategy_fn,
-    validate_all,
+    TrimmedAsciiIdentifier, Utf8, Validated, ValidationError, hlist, hlist_pat, hlist_ty, prove,
+    strategy_fn, validate_all,
 };
 
-use crate::types::{ProjectSlugPolicy, RegistrationError};
+use super::types::{ProjectSlugPolicy, RegistrationError};
 
 /// Evidence that the raw bytes are valid UTF-8, plus their original byte length.
 enum RawInputProof {}
@@ -96,34 +96,24 @@ impl Policy<String> for ProjectSlugPolicy {
 pub fn prepare_slug(
     input: &[u8],
 ) -> Result<Validated<String, ProjectSlugPolicy>, RegistrationError> {
-    let raw_evidence = prove::<RawInputProof, _>(input)?;
-    let utf8 = raw_evidence.evidence().head;
-    let input_bytes = raw_evidence.evidence().tail.head;
+    let hlist_pat![utf8, _input_bytes] = prove::<RawInputProof, _>(input)?.into_evidence();
 
-    let slug_evidence = prove::<SlugShapeProof, _>(utf8)?;
-    let trimmed = slug_evidence.evidence().head;
-    let segments = slug_evidence.evidence().tail.head;
+    let hlist_pat![trimmed, _segments] = prove::<SlugShapeProof, _>(utf8)?.into_evidence();
 
     let canonicalize = strategy_fn(|value: &str| value.to_ascii_lowercase().replace('_', "-"));
     let canonical = canonicalize.apply(trimmed);
-
-    println!("proof: {input_bytes} input bytes, {segments} slug segment(s)");
 
     Ok(validate_all::<ProjectSlugPolicy, _>(canonical)?)
 }
 
 #[cfg(test)]
 mod tests {
-    use strustegy::validate_all;
-
-    use super::prepare_slug;
-    use crate::types::ProjectSlugPolicy;
 
     #[test]
     fn canonical_policy_accepts_exact_canonical_form() {
         for value in ["rose", "rose-2", "strustegy-demo"] {
             assert!(
-                validate_all::<ProjectSlugPolicy, _>(String::from(value)).is_ok(),
+                super::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_ok(),
                 "expected {value:?} to satisfy the canonical policy"
             );
         }
@@ -142,20 +132,20 @@ mod tests {
             "rosé",
         ] {
             assert!(
-                validate_all::<ProjectSlugPolicy, _>(String::from(value)).is_err(),
+                super::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_err(),
                 "expected {value:?} to violate the canonical policy"
             );
         }
 
         assert!(
-            validate_all::<ProjectSlugPolicy, _>("a".repeat(33)).is_err(),
+            super::validate_all::<super::ProjectSlugPolicy, _>("a".repeat(33)).is_err(),
             "expected an oversized slug to violate the canonical policy"
         );
     }
 
     #[test]
     fn preparation_normalizes_before_canonical_validation() {
-        let slug = prepare_slug(b"  Strustegy_Demo  ").expect("input should canonicalize");
+        let slug = super::prepare_slug(b"  Strustegy_Demo  ").expect("input should canonicalize");
 
         assert_eq!(slug.get(), "strustegy-demo");
     }

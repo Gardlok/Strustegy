@@ -2,7 +2,7 @@
 
 use strustegy::{Refine, ValidationError};
 
-use crate::types::{Method, PathSegments, ProtocolVersion, RequestPath};
+use super::types::{Method, PathSegments, ProtocolVersion, RequestPath};
 
 fn token_at<const INDEX: usize>(input: &str) -> Result<&str, ValidationError> {
     input

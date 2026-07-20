@@ -23,7 +23,7 @@ impl<T> Strategy<T> for Identity {
     }
 }
 
-/// Static composition of two strategies.
+/// Static composition of two infallible strategies.
 #[derive(Debug, Clone, Copy)]
 pub struct Compose<F, G> {
     pub first: F,
@@ -49,10 +49,47 @@ where
     }
 }
 
+/// Static short-circuiting composition for strategies with one error type.
+///
+/// Unlike [`Compose`], the second strategy receives the successful value rather
+/// than the first strategy's complete `Result`.
+#[derive(Debug, Clone, Copy)]
+pub struct AndThen<F, G> {
+    pub first: F,
+    pub second: G,
+}
+
+impl<F, G> AndThen<F, G> {
+    pub const fn new(first: F, second: G) -> Self {
+        Self { first, second }
+    }
+}
+
+impl<Input, Intermediate, Output, Error, F, G> Strategy<Input> for AndThen<F, G>
+where
+    F: Strategy<Input, Output = Result<Intermediate, Error>>,
+    G: Strategy<Intermediate, Output = Result<Output, Error>>,
+{
+    type Output = Result<Output, Error>;
+
+    fn apply(&self, input: Input) -> Self::Output {
+        self.first
+            .apply(input)
+            .and_then(|intermediate| self.second.apply(intermediate))
+    }
+}
+
 /// Fluent strategy composition.
 pub trait StrategyExt: Sized {
+    /// Compose two ordinary strategies.
     fn then<G>(self, next: G) -> Compose<Self, G> {
         Compose::new(self, next)
+    }
+
+    /// Compose two strategies returning `Result<_, E>` and short-circuit on the
+    /// first error.
+    fn and_then<G>(self, next: G) -> AndThen<Self, G> {
+        AndThen::new(self, next)
     }
 }
 

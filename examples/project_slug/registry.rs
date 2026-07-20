@@ -2,7 +2,7 @@
 
 use strustegy::Validated;
 
-use crate::types::{AvailableProjectSlug, ProjectSlugPolicy, RegistrationError};
+use super::types::{AvailableProjectSlug, ProjectSlugPolicy, RegistrationError};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SlugRegistry<const N: usize> {

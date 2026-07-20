@@ -97,3 +97,68 @@ where
     let evidence = Policy::refiners().prove(input)?;
     Ok(Witnessed::new(input, evidence))
 }
+
+/// Project a policy's raw heterogeneous evidence into a named domain shape.
+///
+/// The policy remains responsible for the exact refiner HList, while this trait
+/// gives ordinary callers a stable named output instead of requiring them to
+/// manipulate recursive `HCons` types. The output GAT preserves any borrows from
+/// the original input.
+///
+/// ```compile_fail
+/// use strustegy::prelude::*;
+///
+/// enum TrimmedPolicy {}
+///
+/// impl ProofPolicy<str> for TrimmedPolicy {
+///     type Refiners = hlist_ty![TrimmedNonEmpty];
+///
+///     fn refiners() -> Self::Refiners {
+///         hlist![TrimmedNonEmpty]
+///     }
+/// }
+///
+/// impl ProjectEvidence<str> for TrimmedPolicy {
+///     type Output<'input> = &'input str;
+///
+///     fn project<'input>(
+///         _input: &'input str,
+///         evidence: <Self::Refiners as Prove<str>>::Evidence<'input>,
+///     ) -> Self::Output<'input> {
+///         evidence.head
+///     }
+/// }
+///
+/// let projected = {
+///     let input = String::from(" example ");
+///     prove_projected::<TrimmedPolicy, _>(input.as_str()).unwrap()
+/// };
+/// println!("{projected}");
+/// ```
+pub trait ProjectEvidence<Input: ?Sized>: ProofPolicy<Input> {
+    type Output<'input>
+    where
+        Input: 'input;
+
+    fn project<'input>(
+        input: &'input Input,
+        evidence: <Self::Refiners as Prove<Input>>::Evidence<'input>,
+    ) -> Self::Output<'input>;
+}
+
+/// Execute a proof policy and immediately project its evidence into the policy's
+/// named output type.
+///
+/// Use [`prove`] when advanced code needs the raw HList evidence. Use this
+/// function at ordinary domain boundaries where a named result is clearer.
+pub fn prove_projected<'input, Policy, Input>(
+    input: &'input Input,
+) -> Result<Policy::Output<'input>, ValidationError>
+where
+    Input: ?Sized + 'input,
+    Policy: ProjectEvidence<Input>,
+{
+    let witnessed = prove::<Policy, Input>(input)?;
+    let (input, evidence) = witnessed.into_parts();
+    Ok(Policy::project(input, evidence))
+}
