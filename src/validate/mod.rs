@@ -1,4 +1,7 @@
 //! Static validation policies built from heterogeneous rule lists.
+//!
+//! Successful validation creates a receipt for the value as it existed when the
+//! rules ran. It is not authorization and does not freeze interior-mutable state.
 
 use core::fmt;
 use std::error::Error;
@@ -131,7 +134,10 @@ pub trait Policy<T> {
     fn rules() -> Self::Rules;
 }
 
-/// Validate with the first failing rule and return a policy proof on success.
+/// Validate with the first failing rule and return a policy receipt on success.
+///
+/// The returned wrapper records that `value` passed `P` at this call. It does
+/// not establish a perpetual invariant for arbitrary mutable values.
 pub fn validate_first<P, T>(value: T) -> Result<Validated<T, P>, ValidationError>
 where
     P: Policy<T>,
@@ -142,6 +148,9 @@ where
 }
 
 /// Evaluate every rule, collecting at most one error per statically known rule.
+///
+/// On success, the returned wrapper is a receipt for this validation event; it
+/// is not an authorization grant or a permanent fact about external state.
 pub fn validate_all<P, T>(value: T) -> Result<Validated<T, P>, ValidationErrors>
 where
     P: Policy<T>,
