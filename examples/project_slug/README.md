@@ -21,3 +21,8 @@ Run it with:
 ```bash
 cargo run --example project_slug
 ```
+
+The canonicalization stage is the explicit ownership boundary: it creates the
+`String` later wrapped by `Validated`. The availability check remains a temporal
+fact supplied by the registry; a production system would normally pair it with
+a reservation or transaction rather than treat it as permanent validation.

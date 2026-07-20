@@ -150,3 +150,20 @@ fn mutable_mapping_updates_the_original_list() {
     assert_eq!(results, hlist![(), ()]);
     assert_eq!(values, hlist![20_i32, String::from("rose!")]);
 }
+
+#[test]
+fn fallible_composition_passes_only_successful_values_forward() {
+    let parse = strategy_fn(|input: &str| input.parse::<u32>().map_err(|_| "parse"));
+    let bound = strategy_fn(|value: u32| {
+        if value <= 10 {
+            Ok(value * 2)
+        } else {
+            Err("range")
+        }
+    });
+    let pipeline = parse.and_then(bound);
+
+    assert_eq!(pipeline.apply("4"), Ok(8));
+    assert_eq!(pipeline.apply("not-a-number"), Err("parse"));
+    assert_eq!(pipeline.apply("20"), Err("range"));
+}

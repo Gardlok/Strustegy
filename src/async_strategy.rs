@@ -80,10 +80,44 @@ where
     }
 }
 
+/// Static short-circuiting composition for asynchronous strategies sharing one
+/// error type.
+#[derive(Debug, Clone, Copy)]
+pub struct AsyncAndThen<F, G> {
+    pub first: F,
+    pub second: G,
+}
+
+impl<F, G> AsyncAndThen<F, G> {
+    pub const fn new(first: F, second: G) -> Self {
+        Self { first, second }
+    }
+}
+
+impl<Input, Intermediate, Output, Error, F, G> AsyncStrategy<Input> for AsyncAndThen<F, G>
+where
+    F: AsyncStrategy<Input, Output = Result<Intermediate, Error>>,
+    G: AsyncStrategy<Intermediate, Output = Result<Output, Error>>,
+{
+    type Output = Result<Output, Error>;
+
+    async fn apply_async(&self, input: Input) -> Self::Output {
+        let intermediate = self.first.apply_async(input).await?;
+        self.second.apply_async(intermediate).await
+    }
+}
+
 /// Fluent asynchronous strategy composition.
 pub trait AsyncStrategyExt: Sized {
+    /// Compose two ordinary asynchronous strategies.
     fn then_async<G>(self, next: G) -> AsyncCompose<Self, G> {
         AsyncCompose::new(self, next)
+    }
+
+    /// Compose two asynchronous strategies returning `Result<_, E>` and
+    /// short-circuit on the first error.
+    fn and_then_async<G>(self, next: G) -> AsyncAndThen<Self, G> {
+        AsyncAndThen::new(self, next)
     }
 }
 

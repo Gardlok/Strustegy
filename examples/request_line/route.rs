@@ -1,6 +1,6 @@
 //! Allocation-free route recognition over proven path segments.
 
-use crate::types::{Method, ProvenRequest};
+use super::types::{Method, ProvenRequest};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Route<'input> {
@@ -10,7 +10,7 @@ pub enum Route<'input> {
     Unknown { path: &'input str },
 }
 
-pub fn recognize<'input>(request: ProvenRequest<'input>) -> Route<'input> {
+pub fn recognize(request: ProvenRequest<'_>) -> Route<'_> {
     let mut segments = request.segments().iter();
     let first = segments.next();
     let second = segments.next();

@@ -90,6 +90,27 @@ impl<'input> PathSegments<'input> {
     }
 }
 
+/// Named evidence projected from the request-line policy's raw HList.
+///
+/// Consumers that only need parsed request data do not have to mention the
+/// recursive `HCons` shape used internally by the proof engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestEvidence<'input> {
+    pub token_count: usize,
+    pub method: Method,
+    pub path: RequestPath<'input>,
+    pub version: ProtocolVersion<'input>,
+    pub segments: PathSegments<'input>,
+}
+
+/// Named evidence projected from the byte-level UTF-8 policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[doc(hidden)]
+pub struct Utf8RequestLine<'input> {
+    pub line: &'input str,
+    pub byte_len: usize,
+}
+
 /// A request whose syntax has been proven by the request-line policy.
 ///
 /// Every borrowed field remains tied to the lifetime of the original byte
@@ -105,26 +126,20 @@ pub struct ProvenRequest<'input> {
     segments: PathSegments<'input>,
 }
 
-pub(crate) struct RequestParts<'input> {
-    pub line: &'input str,
-    pub byte_len: usize,
-    pub token_count: usize,
-    pub method: Method,
-    pub path: RequestPath<'input>,
-    pub version: ProtocolVersion<'input>,
-    pub segments: PathSegments<'input>,
-}
-
 impl<'input> ProvenRequest<'input> {
-    pub(crate) const fn new(parts: RequestParts<'input>) -> Self {
+    pub(crate) const fn new(
+        line: &'input str,
+        byte_len: usize,
+        evidence: RequestEvidence<'input>,
+    ) -> Self {
         Self {
-            line: parts.line,
-            byte_len: parts.byte_len,
-            token_count: parts.token_count,
-            method: parts.method,
-            path: parts.path,
-            version: parts.version,
-            segments: parts.segments,
+            line,
+            byte_len,
+            token_count: evidence.token_count,
+            method: evidence.method,
+            path: evidence.path,
+            version: evidence.version,
+            segments: evidence.segments,
         }
     }
 

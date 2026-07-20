@@ -90,3 +90,32 @@ fn witnessed_debug_output_is_redacted() {
 
     assert_eq!(format!("{witnessed:?}"), "Witnessed(<redacted>)");
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToolEvidence<'input> {
+    name: &'input str,
+    source_bytes: usize,
+}
+
+impl ProjectEvidence<str> for ToolNameProof {
+    type Output<'input> = ToolEvidence<'input>;
+
+    fn project<'input>(
+        _input: &'input str,
+        evidence: <Self::Refiners as Prove<str>>::Evidence<'input>,
+    ) -> Self::Output<'input> {
+        let hlist_pat![name, source_bytes] = evidence;
+        ToolEvidence { name, source_bytes }
+    }
+}
+
+#[test]
+fn named_evidence_projection_preserves_borrowed_identity() {
+    let input = String::from("  sync_status  ");
+    let projected =
+        prove_projected::<ToolNameProof, _>(input.as_str()).expect("tool name should project");
+
+    assert_eq!(projected.name, "sync_status");
+    assert_eq!(projected.source_bytes, input.len());
+    assert_eq!(projected.name.as_ptr(), input.as_ptr().wrapping_add(2));
+}

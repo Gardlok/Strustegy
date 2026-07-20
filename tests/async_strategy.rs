@@ -68,3 +68,20 @@ fn async_adapter_exposes_and_returns_the_original_callable() {
     let function = strategy.into_inner();
     assert_eq!(block_on(function(2)), 3);
 }
+
+#[test]
+fn asynchronous_fallible_composition_short_circuits() {
+    let parse = async_strategy_fn(async |input: &str| input.parse::<u32>().map_err(|_| "parse"));
+    let bound = async_strategy_fn(async |value: u32| {
+        if value <= 10 {
+            Ok(value * 2)
+        } else {
+            Err("range")
+        }
+    });
+    let pipeline = parse.and_then_async(bound);
+
+    assert_eq!(block_on(pipeline.apply_async("4")), Ok(8));
+    assert_eq!(block_on(pipeline.apply_async("bad")), Err("parse"));
+    assert_eq!(block_on(pipeline.apply_async("20")), Err("range"));
+}

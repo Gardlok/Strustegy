@@ -12,16 +12,16 @@ pub mod strategy;
 pub mod validate;
 
 pub use async_strategy::{
-    AsyncCompose, AsyncFnStrategy, AsyncStrategy, AsyncStrategyExt, IntoAsync, async_strategy_fn,
-    into_async,
+    AsyncAndThen, AsyncCompose, AsyncFnStrategy, AsyncStrategy, AsyncStrategyExt, IntoAsync,
+    async_strategy_fn, into_async,
 };
 pub use fn_strategy::{FnStrategy, strategy_fn};
 pub use hlist::{Get, GetExt, HCons, HList, HNil, Here, NonEmptyHList, There};
 pub use pipeline::{HMap, HMapRefExt};
 pub use proof::{Validated, Witnessed};
 pub use refine::refiners::{ByteLen, Trimmed, TrimmedAsciiIdentifier, TrimmedNonEmpty, Utf8};
-pub use refine::{ProofPolicy, Prove, Refine, prove};
-pub use strategy::{Compose, Identity, Strategy, StrategyExt};
+pub use refine::{ProjectEvidence, ProofPolicy, Prove, Refine, prove, prove_projected};
+pub use strategy::{AndThen, Compose, Identity, Strategy, StrategyExt};
 pub use validate::rules::{AsciiIdentifier, MaxBytes, NonEmpty};
 pub use validate::{
     Policy, Rule, ValidateRules, ValidationError, ValidationErrors, validate_all, validate_first,
@@ -30,7 +30,7 @@ pub use validate::{
 /// Commonly used Strustegy traits, types, rules, and macros.
 pub mod prelude {
     pub use crate::async_strategy::{
-        AsyncCompose, AsyncFnStrategy, AsyncStrategy, AsyncStrategyExt, IntoAsync,
+        AsyncAndThen, AsyncCompose, AsyncFnStrategy, AsyncStrategy, AsyncStrategyExt, IntoAsync,
         async_strategy_fn, into_async,
     };
     pub use crate::fn_strategy::{FnStrategy, strategy_fn};
@@ -40,8 +40,8 @@ pub mod prelude {
     pub use crate::refine::refiners::{
         ByteLen, Trimmed, TrimmedAsciiIdentifier, TrimmedNonEmpty, Utf8,
     };
-    pub use crate::refine::{ProofPolicy, Prove, Refine, prove};
-    pub use crate::strategy::{Compose, Identity, Strategy, StrategyExt};
+    pub use crate::refine::{ProjectEvidence, ProofPolicy, Prove, Refine, prove, prove_projected};
+    pub use crate::strategy::{AndThen, Compose, Identity, Strategy, StrategyExt};
     pub use crate::validate::rules::{AsciiIdentifier, MaxBytes, NonEmpty};
     pub use crate::validate::{
         Policy, Rule, ValidateRules, ValidationError, ValidationErrors, validate_all,

@@ -21,17 +21,14 @@ fn main() -> Result<(), RegistrationError> {
     let registry = SlugRegistry::new(["rose", "strustegy", "pennywise"]);
 
     let prepare = strategy_fn(pipeline::prepare_slug);
-    let ensure_available = async_strategy_fn(
-        async |slug: Result<Validated<String, ProjectSlugPolicy>, RegistrationError>| {
-            let slug = slug?;
-            let available = registry.ensure_available(slug).await?;
+    let ensure_available = async_strategy_fn(async |slug: Validated<String, ProjectSlugPolicy>| {
+        let available = registry.ensure_available(slug).await?;
 
-            println!("availability proof: slug is not registered");
+        println!("availability proof: slug is not registered");
 
-            Ok::<AvailableProjectSlug, RegistrationError>(available)
-        },
-    );
-    let registration = into_async(prepare).then_async(ensure_available);
+        Ok::<AvailableProjectSlug, RegistrationError>(available)
+    });
+    let registration = into_async(prepare).and_then_async(ensure_available);
     let available = block_on(registration.apply_async(raw_input))?;
 
     println!("raw input: {}", String::from_utf8_lossy(raw_input));

@@ -55,3 +55,8 @@ segments: ["projects", "rose"]
 zero-copy: line, path, version, and segments borrow the input buffer
 dispatch: load project "rose"
 ```
+
+The raw recursive evidence type is projected by the policy into named
+`RequestEvidence<'input>` and `ProvenRequest<'input>` values. HList
+pattern-matching remains inside the policy implementation rather than leaking
+into ordinary parsing or routing code.
