@@ -151,6 +151,10 @@ permission require an operation-scoped authority mechanism.
   availability check composed with `.and_then_async(...)`.
 - `cargo run --example request_line` proves a small STR/1 request line and
   projects raw evidence into named borrowed domain types.
+- `cargo run --example nested_manifest` builds a mixed typed tree with nested
+  HLists, borrowed GAT-backed evidence, policy receipts, static indexing, and
+  nested pattern matching.
+
 ## Performance
 
 The lightweight benchmark harness, allocation expectations, binary-size checks,
