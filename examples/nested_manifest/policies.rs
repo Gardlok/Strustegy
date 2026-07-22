@@ -70,9 +70,7 @@ impl Rule<String> for CanonicalIdentifierSyntax {
         }
 
         let valid = value.bytes().all(|byte| {
-            byte.is_ascii_lowercase()
-                || byte.is_ascii_digit()
-                || matches!(byte, b'_' | b'-')
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-')
         });
 
         if valid {
@@ -116,14 +114,10 @@ impl Rule<String> for ArtifactNameSyntax {
         }
 
         let bytes = value.as_bytes();
-        let endpoints_are_alphanumeric = bytes
-            .first()
-            .is_some_and(u8::is_ascii_alphanumeric)
+        let endpoints_are_alphanumeric = bytes.first().is_some_and(u8::is_ascii_alphanumeric)
             && bytes.last().is_some_and(u8::is_ascii_alphanumeric);
         let characters_are_allowed = bytes.iter().all(|byte| {
-            byte.is_ascii_lowercase()
-                || byte.is_ascii_digit()
-                || matches!(byte, b'.' | b'_' | b'-')
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
         });
 
         if endpoints_are_alphanumeric && characters_are_allowed {
@@ -209,10 +203,7 @@ impl Rule<u8> for RetryLimitRange {
         if *value <= 5 {
             Ok(())
         } else {
-            Err(ValidationError::new(
-                "retry_limit_range",
-                "out_of_range",
-            ))
+            Err(ValidationError::new("retry_limit_range", "out_of_range"))
         }
     }
 }

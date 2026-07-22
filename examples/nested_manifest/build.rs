@@ -23,9 +23,7 @@ pub fn borrowed_view_inside(source: &str, view: &str) -> bool {
     source_start <= view_start && view_end <= source_end
 }
 
-fn canonicalize_and_validate<P>(
-    value: &str,
-) -> Result<Validated<String, P>, ValidationError>
+fn canonicalize_and_validate<P>(value: &str) -> Result<Validated<String, P>, ValidationError>
 where
     P: Policy<String>,
 {
@@ -39,13 +37,10 @@ where
 pub fn build_manifest<'input>(
     raw: &RawDeployment<'input>,
 ) -> Result<NestedManifest<'input>, BuildError> {
-    let project_input = prove_projected::<ProjectInputProof, _>(raw.project).map_err(|error| {
-        BuildError::new(BuildPhase::ProjectRefinement, error)
-    })?;
-    let environment_input =
-        prove_projected::<EnvironmentInputProof, _>(raw.environment).map_err(|error| {
-            BuildError::new(BuildPhase::EnvironmentRefinement, error)
-        })?;
+    let project_input = prove_projected::<ProjectInputProof, _>(raw.project)
+        .map_err(|error| BuildError::new(BuildPhase::ProjectRefinement, error))?;
+    let environment_input = prove_projected::<EnvironmentInputProof, _>(raw.environment)
+        .map_err(|error| BuildError::new(BuildPhase::EnvironmentRefinement, error))?;
 
     debug_assert!(borrowed_view_inside(
         raw.project,
@@ -58,10 +53,9 @@ pub fn build_manifest<'input>(
 
     let project = canonicalize_and_validate::<ProjectNamePolicy>(project_input.trimmed_identifier)
         .map_err(|error| BuildError::new(BuildPhase::ProjectValidation, error))?;
-    let environment = canonicalize_and_validate::<EnvironmentNamePolicy>(
-        environment_input.trimmed_identifier,
-    )
-    .map_err(|error| BuildError::new(BuildPhase::EnvironmentValidation, error))?;
+    let environment =
+        canonicalize_and_validate::<EnvironmentNamePolicy>(environment_input.trimmed_identifier)
+            .map_err(|error| BuildError::new(BuildPhase::EnvironmentValidation, error))?;
 
     let artifact = validate_first::<ArtifactNamePolicy, _>(String::from(raw.artifact_name))
         .map_err(|error| BuildError::new(BuildPhase::ArtifactNameValidation, error))?;

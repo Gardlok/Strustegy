@@ -9,9 +9,7 @@ use crate::domain::{
     ArtifactGroup, ExecutionMode, IdentityGroup, InputEvidenceGroup, LimitsGroup,
     ManifestSourceKind, RawDeployment,
 };
-use crate::policies::{
-    ArtifactNamePolicy, BuildPhase, ChecksumSyntaxPolicy, ProjectNamePolicy,
-};
+use crate::policies::{ArtifactNamePolicy, BuildPhase, ChecksumSyntaxPolicy, ProjectNamePolicy};
 
 const CHECKSUM: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -38,15 +36,11 @@ fn valid_input_builds_the_complete_mixed_tree() {
     assert_eq!(LimitsGroup::LEN, 2);
 
     assert_eq!(
-        manifest
-            .get2::<IdentityGroupIndex, FirstIndex>()
-            .get(),
+        manifest.get2::<IdentityGroupIndex, FirstIndex>().get(),
         "rose_core"
     );
     assert_eq!(
-        manifest
-            .get2::<IdentityGroupIndex, SecondIndex>()
-            .get(),
+        manifest.get2::<IdentityGroupIndex, SecondIndex>().get(),
         "prod-west"
     );
     assert_eq!(
@@ -95,17 +89,10 @@ fn two_step_and_local_get2_indexing_agree() {
     assert!(core::ptr::eq(two_step_environment, get2_environment));
     assert_eq!(get2_environment.get(), "prod-west");
     assert_eq!(
-        manifest
-            .get2::<ArtifactGroupIndex, FirstIndex>()
-            .get(),
+        manifest.get2::<ArtifactGroupIndex, FirstIndex>().get(),
         "rose-core_1.2.3.tar"
     );
-    assert_eq!(
-        *manifest
-            .get2::<LimitsGroupIndex, SecondIndex>()
-            .get(),
-        3
-    );
+    assert_eq!(*manifest.get2::<LimitsGroupIndex, SecondIndex>().get(), 3);
 }
 
 #[test]
@@ -200,12 +187,7 @@ fn numeric_policies_enforce_documented_bounds() {
     let mut raw = valid_raw();
     raw.retry_limit = 0;
     let manifest = build_manifest(&raw).expect("zero retries should remain valid");
-    assert_eq!(
-        *manifest
-            .get2::<LimitsGroupIndex, SecondIndex>()
-            .get(),
-        0
-    );
+    assert_eq!(*manifest.get2::<LimitsGroupIndex, SecondIndex>().get(), 0);
 }
 
 #[test]

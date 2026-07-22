@@ -54,8 +54,10 @@ pub struct EnvironmentInputEvidence<'input> {
     pub source_bytes: usize,
 }
 
-pub type InputEvidenceGroup<'input> =
-    hlist_ty![ProjectInputEvidence<'input>, EnvironmentInputEvidence<'input>];
+pub type InputEvidenceGroup<'input> = hlist_ty![
+    ProjectInputEvidence<'input>,
+    EnvironmentInputEvidence<'input>
+];
 
 pub type IdentityGroup = hlist_ty![
     Validated<String, ProjectNamePolicy>,
