@@ -1,34 +1,49 @@
 # Strustegy
 
-**Strustegy turns untrusted boundary input into named, policy-backed Rust values
-using static strategy composition and zero-copy borrowed evidence.**
+Strustegy is a small Rust library for building typed processing pipelines.
 
-It is an experimental, dependency-free toolkit for trusted boundary processing
-on stable Rust. Its HList core computes heterogeneous strategy and proof outputs
-at compile time, while named policies and projected evidence let ordinary code
-work with domain types instead of recursive `HCons` signatures.
+It combines:
 
-Strustegy is deliberately narrow. It is not a runtime plugin registry, dynamic
-validation framework, authorization system, schema engine, Serde replacement,
-or general-purpose functional-programming crate.
+* statically composed strategies;
+* heterogeneous lists;
+* borrowed refinement;
+* policy-based validation;
+* named evidence and validated values.
 
-## Design goals
+The main idea is simple: start with ordinary input, process it through a known set of steps, and produce values whose types record what happened.
 
-- Stable Rust 1.85 or newer.
-- `#![forbid(unsafe_code)]` throughout the library.
-- Static dispatch and no required heap allocation in the HList or strategy core.
-- Borrowed refinement evidence tied to the input lifetime through GATs.
-- Policy types that fix their rule or refiner lists.
-- Named projections for everyday domain code while retaining raw HLists for
-  advanced use.
-- Redaction-safe built-in proof and validation diagnostics.
+```rust
+use strustegy::prelude::*;
 
-The exact semantics and limitations of `Validated` and `Witnessed` are defined
-in [PROOF_MODEL.md](PROOF_MODEL.md). In particular, validation is not
-authorization, and `Validated<T, Policy>` records that `T` passed the policy when
-the wrapper was created; arbitrary interior-mutable values can later change.
+let pipeline =
+    strategy_fn(|value: i32| i64::from(value))
+        .then(strategy_fn(|value: i64| format!("value:{value}")));
 
-## Strategy composition
+assert_eq!(pipeline.apply(7), "value:7");
+```
+
+Strustegy uses static dispatch throughout. It does not require a runtime registry, boxed strategies, or a validation framework.
+
+## Features
+
+* Synchronous and asynchronous strategies
+* Static strategy composition
+* Fallible short-circuiting pipelines
+* Function and closure adapters
+* Heterogeneous lists
+* Static HList indexing
+* Borrowed HList views
+* GAT-backed borrowed refinement
+* Policy-owned validation rules
+* Named proof projections
+* Non-forgeable validated values
+* Redaction-safe built-in diagnostics
+* No runtime dependencies
+* No unsafe code
+
+## Strategies
+
+A strategy transforms one type into another.
 
 ```rust
 use strustegy::prelude::*;
@@ -44,38 +59,107 @@ impl Strategy<i32> for Widen {
     }
 }
 
-let pipeline = Widen.then(strategy_fn(|value: i64| format!("value:{value}")));
-assert_eq!(pipeline.apply(7), "value:7");
+assert_eq!(Widen.apply(4), 4_i64);
 ```
 
-Fallible strategies compose with `.and_then(...)`, so the second strategy
-receives only the successful value:
+Strategies can be composed with `.then(...)`.
 
 ```rust
 use strustegy::prelude::*;
 
-let parse = strategy_fn(|input: &str| input.parse::<u32>().map_err(|_| "parse"));
-let bound = strategy_fn(|value: u32| {
-    if value <= 10 { Ok(value * 2) } else { Err("range") }
-});
+let pipeline =
+    strategy_fn(|value: i32| value + 1)
+        .then(strategy_fn(|value: i32| value * 2));
 
-let pipeline = parse.and_then(bound);
-assert_eq!(pipeline.apply("4"), Ok(8));
-assert_eq!(pipeline.apply("20"), Err("range"));
+assert_eq!(pipeline.apply(4), 10);
 ```
 
-The asynchronous equivalent is `.and_then_async(...)`. Both forms remain
-statically dispatched and do not require a boxed future or executor dependency.
+Fallible strategies can be composed with `.and_then(...)`.
 
-## Zero-copy refinement and named evidence
+```rust
+use strustegy::prelude::*;
 
-`Refine::Output<'input>` is a GAT. Each refiner chooses an output family tied to
-the borrowed input, while `Prove::Evidence<'input>` recursively assembles the
-policy's heterogeneous evidence HList.
+let parse =
+    strategy_fn(|input: &str| input.parse::<u32>().map_err(|_| "invalid number"));
 
-Advanced code can retain that raw evidence through `prove`. Everyday boundaries
-can implement `ProjectEvidence` and call `prove_projected` to return a named
-structure:
+let limit = strategy_fn(|value: u32| {
+    if value <= 10 {
+        Ok(value)
+    } else {
+        Err("out of range")
+    }
+});
+
+let pipeline = parse.and_then(limit);
+
+assert_eq!(pipeline.apply("7"), Ok(7));
+assert_eq!(pipeline.apply("20"), Err("out of range"));
+```
+
+## Async strategies
+
+`AsyncStrategy` is the asynchronous counterpart to `Strategy`.
+
+Async functions and closures can be adapted with `async_strategy_fn(...)`.
+
+```rust
+use strustegy::prelude::*;
+
+# async fn example() {
+let fetch = async_strategy_fn(async |value: u32| value + 1);
+
+let result = fetch.apply_async(4).await;
+
+assert_eq!(result, 5);
+# }
+```
+
+Async strategies compose with `.then_async(...)` and `.and_then_async(...)`.
+
+Synchronous strategies can also be lifted with `into_async(...)`.
+
+Strustegy does not provide an async runtime. The caller chooses the executor.
+
+## HLists
+
+An HList is a list whose elements may have different types.
+
+```rust
+use strustegy::prelude::*;
+
+let values = hlist![
+    42_u32,
+    "hello",
+    true,
+];
+```
+
+The shape of the list is part of its type.
+
+```rust
+use strustegy::prelude::*;
+
+type Values = hlist_ty![
+    u32,
+    &'static str,
+    bool,
+];
+```
+
+HLists support:
+
+* construction with `hlist!`;
+* type expressions with `hlist_ty!`;
+* pattern matching with `hlist_pat!`;
+* static indexing;
+* shared and mutable borrowed views;
+* mapping strategies over heterogeneous values.
+
+HLists may also contain other HLists or ordinary domain types. They are useful when each stage or field has a different type but the overall structure is known at compile time.
+
+## Borrowed refinement
+
+Refinement examines borrowed input and produces evidence tied to the input lifetime.
 
 ```rust
 use strustegy::prelude::*;
@@ -83,13 +167,39 @@ use strustegy::prelude::*;
 pub enum ToolNameProof {}
 
 impl ProofPolicy<str> for ToolNameProof {
-    type Refiners = hlist_ty![TrimmedAsciiIdentifier, ByteLen];
+    type Refiners = hlist_ty![
+        TrimmedAsciiIdentifier,
+        ByteLen,
+    ];
 
     fn refiners() -> Self::Refiners {
-        hlist![TrimmedAsciiIdentifier, ByteLen]
+        hlist![
+            TrimmedAsciiIdentifier,
+            ByteLen,
+        ]
     }
 }
+```
 
+Each refiner chooses its own output type through a generic associated type.
+
+That means evidence may borrow directly from the original input without allocating a new value.
+
+For application code, raw HList evidence can be projected into a named type.
+
+```rust
+use strustegy::prelude::*;
+
+# pub enum ToolNameProof {}
+#
+# impl ProofPolicy<str> for ToolNameProof {
+#     type Refiners = hlist_ty![TrimmedAsciiIdentifier, ByteLen];
+#
+#     fn refiners() -> Self::Refiners {
+#         hlist![TrimmedAsciiIdentifier, ByteLen]
+#     }
+# }
+#
 pub struct ToolEvidence<'input> {
     pub name: &'input str,
     pub source_bytes: usize,
@@ -103,22 +213,20 @@ impl ProjectEvidence<str> for ToolNameProof {
         evidence: <Self::Refiners as Prove<str>>::Evidence<'input>,
     ) -> Self::Output<'input> {
         let hlist_pat![name, source_bytes] = evidence;
-        ToolEvidence { name, source_bytes }
+
+        ToolEvidence {
+            name,
+            source_bytes,
+        }
     }
 }
-
-let input = String::from("  sync_status  ");
-let evidence = prove_projected::<ToolNameProof, _>(input.as_str())?;
-assert_eq!(evidence.name, "sync_status");
-assert_eq!(evidence.source_bytes, input.len());
-# Ok::<(), ValidationError>(())
 ```
 
-The projection output cannot outlive the input. The request-line example uses
-this mechanism to keep HList destructuring inside the policy while its parser
-returns `ProvenRequest<'input>`.
+The projected evidence cannot outlive the original input.
 
-## Policy-backed validation
+## Validation policies
+
+Validation policies own their rule lists.
 
 ```rust
 use strustegy::prelude::*;
@@ -126,58 +234,150 @@ use strustegy::prelude::*;
 pub enum ToolNamePolicy {}
 
 impl Policy<String> for ToolNamePolicy {
-    type Rules = hlist_ty![NonEmpty, MaxBytes<64>, AsciiIdentifier];
+    type Rules = hlist_ty![
+        NonEmpty,
+        MaxBytes<64>,
+        AsciiIdentifier,
+    ];
 
     fn rules() -> Self::Rules {
-        hlist![NonEmpty, MaxBytes::<64>, AsciiIdentifier]
+        hlist![
+            NonEmpty,
+            MaxBytes::<64>,
+            AsciiIdentifier,
+        ]
     }
 }
+```
 
+A value can then be checked against the policy.
+
+```rust
+use strustegy::prelude::*;
+
+# pub enum ToolNamePolicy {}
+#
+# impl Policy<String> for ToolNamePolicy {
+#     type Rules = hlist_ty![
+#         NonEmpty,
+#         MaxBytes<64>,
+#         AsciiIdentifier,
+#     ];
+#
+#     fn rules() -> Self::Rules {
+#         hlist![NonEmpty, MaxBytes::<64>, AsciiIdentifier]
+#     }
+# }
+#
 let name: Validated<String, ToolNamePolicy> =
-    validate_all::<ToolNamePolicy, _>(String::from("sync_status"))?;
+    validate_all::<ToolNamePolicy, _>("sync_status".to_owned())?;
+
 assert_eq!(name.get(), "sync_status");
+
 # Ok::<(), ValidationErrors>(())
 ```
 
-A policy fixes its exact rule-list type. Callers cannot request the same policy
-marker while substituting an empty or weaker list. The policy implementation
-itself still has to be correct, and temporal facts such as availability or
-permission require an operation-scoped authority mechanism.
+`Validated<T, Policy>` means that the value passed that policy when the wrapper was created.
+
+It does not prove:
+
+* authorization;
+* permission;
+* ownership;
+* database state;
+* availability;
+* uniqueness;
+* external freshness;
+* successful execution.
+
+See [PROOF_MODEL.md](PROOF_MODEL.md) for the exact guarantees and limitations of `Validated` and `Witnessed`.
 
 ## Examples
 
-- `cargo run --example project_slug` demonstrates borrowed proof stages,
-  canonicalization into an owned slug, policy validation, and an async
-  availability check composed with `.and_then_async(...)`.
-- `cargo run --example request_line` proves a small STR/1 request line and
-  projects raw evidence into named borrowed domain types.
-- `cargo run --example nested_manifest` builds a mixed typed tree with nested
-  HLists, borrowed GAT-backed evidence, policy receipts, static indexing, and
-  nested pattern matching.
+### Project slug
+
+```bash
+cargo run --example project_slug
+```
+
+Demonstrates:
+
+* borrowed refinement;
+* canonicalization;
+* owned validation;
+* synchronous and asynchronous composition.
+
+### Request line
+
+```bash
+cargo run --example request_line
+```
+
+Parses and proves a small request-line format while projecting heterogeneous borrowed evidence into named domain types.
+
+### Nested manifest
+
+```bash
+cargo run --example nested_manifest
+```
+
+Builds a typed deployment-manifest structure containing:
+
+* ordinary structs and enums;
+* nested HLists;
+* borrowed evidence;
+* validated owned values;
+* static indexing;
+* nested pattern matching.
+
+The example also shows that HList borrowing is intentionally shallow. Nested groups are borrowed explicitly rather than traversed recursively.
+
+## Crate layout
+
+* `strategy` — synchronous strategies and composition
+* `fn_strategy` — synchronous function and closure adapters
+* `async_strategy` — asynchronous strategies, adapters, composition, and sync lifting
+* `hlist` — heterogeneous lists, borrowing, patterns, and indexing
+* `pipeline` — applying strategies across HLists
+* `refine` — borrowed refinement and evidence projection
+* `validate` — validation rules and policies
+* `proof` — validated and witnessed value wrappers
+
+## Design boundaries
+
+Strustegy is intentionally focused.
+
+It is not:
+
+* an authorization system;
+* a runtime plugin registry;
+* a schema language;
+* a serialization framework;
+* a general-purpose policy engine;
+* an async runtime;
+* a replacement for domain-specific application types.
+
+The crate provides static building blocks. Applications remain responsible for deciding what their policies mean and which authority is required for an operation.
+
+## Rust version
+
+Strustegy supports Rust 1.85 and newer.
+
+The crate uses Rust 2024 edition features and forbids unsafe code.
 
 ## Performance
 
-The lightweight benchmark harness, allocation expectations, binary-size checks,
-and compile-depth measurements are documented in
-[BENCHMARKS.md](BENCHMARKS.md). Static dispatch does not by itself make an
-operation zero-cost; the report distinguishes borrowed stages from stages that
-create owned values.
+Strustegy uses static dispatch and avoids boxing in its strategy core.
 
-## Architecture
+Some refinement stages borrow directly from input, while other operations intentionally create owned values.
 
-- `hlist`: heterogeneous structure, borrowing, mutation, and static indexing.
-- `strategy`: synchronous composition, including fallible composition.
-- `fn_strategy`: adapters for functions and shared closures.
-- `async_strategy`: async-closure adapters, static composition, and sync lifting.
-- `pipeline`: applying strategies across HLists.
-- `refine`: GAT-backed borrowed refinement, proof evidence, and named projection.
-- `validate`: rule lists, policies, fail-fast and accumulating validation.
-- `proof`: non-public proof construction and redacted wrappers.
+Benchmark methodology, allocation expectations, binary-size measurements, and compile-depth tests are documented in [BENCHMARKS.md](BENCHMARKS.md).
 
-## Status
+## Project status
 
-This is an early `0.1` foundation. The API is expected to evolve before
-stabilization.
+Strustegy is currently an early `0.1` library.
+
+The core design is usable, but the public API may continue to evolve as it is tested in real applications.
 
 ## License
 
