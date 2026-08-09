@@ -23,3 +23,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Short-circuiting synchronous and asynchronous `Result` composition.
 - A lightweight runtime, binary-size, allocation-expectation, and compile-depth baseline.
 - A mixed nested-HList deployment-manifest example with borrowed evidence and policy-backed values.
+- Consumer boundary-pattern guidance covering application domain wrappers, canonicalization-before-validation, wire revalidation, aggregate invariants, and redaction-safe diagnostic projection.
