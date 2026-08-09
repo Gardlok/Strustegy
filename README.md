@@ -290,7 +290,23 @@ It does not prove:
 * external freshness;
 * successful execution.
 
-See [PROOF_MODEL.md](PROOF_MODEL.md) for the exact guarantees and limitations of `Validated` and `Witnessed`.
+See the [proof model](https://github.com/Gardlok/Strustegy/blob/main/PROOF_MODEL.md) for the exact guarantees and limitations of `Validated` and `Witnessed`.
+
+## Boundary guidance
+
+For canonical domain values, normalize or canonicalize first and then validate the canonical representation. Do not treat a validating rule as a hidden normalizer.
+
+Across wire, IPC, or persistence boundaries, serialize ordinary stable data and revalidate it when reconstructing a trusted application type. Strustegy does not serialize `Validated` or `Witnessed`, and serialized policy metadata is not transferable proof authority.
+
+Built-in diagnostics are redaction-safe. Applications can map `ValidationError::rule()` / `code()` and `ValidationErrors::as_slice()` / `into_vec()` into application-owned stable machine codes without returning rejected input.
+
+The deeper release and boundary documents are:
+
+* [Boundary patterns](https://github.com/Gardlok/Strustegy/blob/main/BOUNDARY_PATTERNS.md) — application domain wrappers, canonicalization, wire reconstruction, aggregate invariants, and diagnostic projection.
+* [Proof model](https://github.com/Gardlok/Strustegy/blob/main/PROOF_MODEL.md) — exact proof semantics, threat model, mutation caveats, and authority limitations.
+* [Performance baseline](https://github.com/Gardlok/Strustegy/blob/main/BENCHMARKS.md) — runtime, allocation, binary-size, and compile-depth measurements.
+
+The absolute repository links are intentional because this README is also the crate-level rustdoc through `include_str!`.
 
 ## Examples
 
@@ -371,7 +387,7 @@ Strustegy uses static dispatch and avoids boxing in its strategy core.
 
 Some refinement stages borrow directly from input, while other operations intentionally create owned values.
 
-Benchmark methodology, allocation expectations, binary-size measurements, and compile-depth tests are documented in [BENCHMARKS.md](BENCHMARKS.md).
+Benchmark methodology, allocation expectations, binary-size measurements, and compile-depth tests are documented in the [performance baseline](https://github.com/Gardlok/Strustegy/blob/main/BENCHMARKS.md).
 
 ## Project status
 
