@@ -99,18 +99,41 @@ Policy validation
 domain value
 ```
 
-For example:
+For this example, the application's canonical representation permits only lowercase ASCII letters, digits, and hyphens:
 
 ```rust
 use strustegy::prelude::*;
 
-# enum CanonicalNamePolicy {}
-# impl Policy<String> for CanonicalNamePolicy {
-#     type Rules = hlist_ty![NonEmpty, MaxBytes<64>, AsciiIdentifier];
-#     fn rules() -> Self::Rules {
-#         hlist![NonEmpty, MaxBytes::<64>, AsciiIdentifier]
-#     }
-# }
+#[derive(Debug, Clone, Copy, Default)]
+struct CanonicalNameSyntax;
+
+impl Rule<String> for CanonicalNameSyntax {
+    fn check(&self, value: &String) -> Result<(), ValidationError> {
+        let valid = value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+        });
+
+        if valid {
+            Ok(())
+        } else {
+            Err(ValidationError::new(
+                "canonical_name_syntax",
+                "noncanonical",
+            ))
+        }
+    }
+}
+
+enum CanonicalNamePolicy {}
+
+impl Policy<String> for CanonicalNamePolicy {
+    type Rules = hlist_ty![NonEmpty, MaxBytes<64>, CanonicalNameSyntax];
+
+    fn rules() -> Self::Rules {
+        hlist![NonEmpty, MaxBytes::<64>, CanonicalNameSyntax]
+    }
+}
+
 fn prepare_name(
     raw: &str,
 ) -> Result<Validated<String, CanonicalNamePolicy>, ValidationErrors> {
@@ -119,7 +142,7 @@ fn prepare_name(
 }
 ```
 
-A real canonical policy should contain the rules that define the application's canonical representation. The important ordering is that those rules inspect the representation the application intends to keep.
+The important ordering is that `CanonicalNamePolicy` inspects the representation the application intends to keep.
 
 Do not hide canonicalization inside a rule whose advertised meaning is "this value is canonical." A rule that silently changes input would blur two different operations: transforming a value and proving a property of the resulting value. Keeping the transformation explicit also makes the ownership/allocation boundary visible.
 
@@ -145,26 +168,20 @@ revalidate
 reconstruct trusted application domain value
 ```
 
-Conceptually:
+Assume an application-owned `ProjectSlug` follows Pattern 1 and its `from_untrusted` constructor runs the current Strustegy policy. The wire adapter should move ordinary data, then call that boundary constructor again:
 
 ```rust
 struct WireProject {
     slug: String,
 }
 
-# struct ProjectSlug(String);
-# impl ProjectSlug {
-#     fn as_str(&self) -> &str { &self.0 }
-#     fn from_untrusted(value: String) -> Result<Self, ()> { Ok(Self(value)) }
-# }
 fn to_wire(project: &ProjectSlug) -> WireProject {
     WireProject {
         slug: project.as_str().to_owned(),
     }
 }
 
-fn from_wire(wire: WireProject) -> Result<ProjectSlug, ()> {
-    // The receiving boundary executes its current validation path again.
+fn from_wire(wire: WireProject) -> Result<ProjectSlug, ValidationErrors> {
     ProjectSlug::from_untrusted(wire.slug)
 }
 ```
@@ -203,12 +220,20 @@ Examples include:
 - revision progression;
 - archive-state transition rules.
 
-For example, separate policies can establish the allowed representation or range of two timestamps, while the aggregate constructor enforces their ordering:
+For example, separate boundary policies can establish the allowed representation or range of two timestamps, while the aggregate constructor enforces their ordering:
 
 ```rust
-# struct Start(u64);
-# struct End(u64);
-# struct DomainError;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Start(u64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct End(u64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DomainError {
+    StartAfterEnd,
+}
+
 struct Window {
     start: Start,
     end: End,
@@ -217,7 +242,7 @@ struct Window {
 impl Window {
     fn new(start: Start, end: End) -> Result<Self, DomainError> {
         if start.0 > end.0 {
-            return Err(DomainError);
+            return Err(DomainError::StartAfterEnd);
         }
 
         Ok(Self { start, end })
