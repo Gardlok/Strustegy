@@ -8,7 +8,9 @@ use strustegy::{Validated, ValidationError, ValidationErrors};
 /// The static syntactic policy for an owned canonical project slug.
 pub(crate) enum ProjectSlugPolicy {}
 
-/// A project slug that is both policy-valid and currently available.
+/// A policy-valid project slug whose point-in-time registry availability check passed.
+///
+/// This example type does not reserve the slug or make availability durable.
 #[derive(Debug)]
 pub struct AvailableProjectSlug {
     slug: Validated<String, ProjectSlugPolicy>,
