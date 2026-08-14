@@ -24,7 +24,8 @@ pub use refine::{ProjectEvidence, ProofPolicy, Prove, Refine, prove, prove_proje
 pub use strategy::{AndThen, Compose, Identity, Strategy, StrategyExt};
 pub use validate::rules::{AsciiIdentifier, InclusiveU64, MaxBytes, MaxUnicodeScalars, NonEmpty};
 pub use validate::{
-    Policy, Rule, ValidateRules, ValidationError, ValidationErrors, validate_all, validate_first,
+    Policy, Rule, ValidateRules, ValidateWith, ValidationError, ValidationErrors, validate_all,
+    validate_first,
 };
 
 /// Commonly used Strustegy traits, types, rules, and macros.
@@ -46,7 +47,7 @@ pub mod prelude {
         AsciiIdentifier, InclusiveU64, MaxBytes, MaxUnicodeScalars, NonEmpty,
     };
     pub use crate::validate::{
-        Policy, Rule, ValidateRules, ValidationError, ValidationErrors, validate_all,
+        Policy, Rule, ValidateRules, ValidateWith, ValidationError, ValidationErrors, validate_all,
         validate_first,
     };
     pub use crate::{hlist, hlist_pat, hlist_ty};
