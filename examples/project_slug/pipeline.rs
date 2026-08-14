@@ -6,9 +6,6 @@ use strustegy::{
     hlist_ty, prove, strategy_fn,
 };
 
-#[cfg(test)]
-use strustegy::validate_all;
-
 use super::types::{ProjectSlugPolicy, RegistrationError};
 
 /// Evidence that the raw bytes are valid UTF-8, plus their original byte length.
@@ -116,7 +113,7 @@ mod tests {
     fn canonical_policy_accepts_exact_canonical_form() {
         for value in ["rose", "rose-2", "strustegy-demo"] {
             assert!(
-                super::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_ok(),
+                strustegy::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_ok(),
                 "expected {value:?} to satisfy the canonical policy"
             );
         }
@@ -135,13 +132,13 @@ mod tests {
             "rosé",
         ] {
             assert!(
-                super::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_err(),
+                strustegy::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_err(),
                 "expected {value:?} to violate the canonical policy"
             );
         }
 
         assert!(
-            super::validate_all::<super::ProjectSlugPolicy, _>("a".repeat(33)).is_err(),
+            strustegy::validate_all::<super::ProjectSlugPolicy, _>("a".repeat(33)).is_err(),
             "expected an oversized slug to violate the canonical policy"
         );
     }
