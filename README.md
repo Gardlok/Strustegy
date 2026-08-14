@@ -35,6 +35,7 @@ Strustegy uses static dispatch throughout. It does not require a runtime registr
 * Borrowed HList views
 * GAT-backed borrowed refinement
 * Policy-owned validation rules
+* Policy validation as a static strategy stage
 * Named proof projections
 * Non-forgeable validated values
 * Redaction-safe built-in diagnostics
@@ -252,7 +253,7 @@ impl Policy<String> for ToolNamePolicy {
 
 Two length limits are intentionally distinct: `MaxBytes<MAX>` bounds UTF-8 bytes, while `MaxUnicodeScalars<MAX>` bounds Rust `char` (Unicode scalar value) count rather than grapheme clusters or user-perceived characters. `InclusiveU64<MIN, MAX>` validates a closed inclusive `u64` interval.
 
-A value can then be checked against the policy.
+A value can then be checked against the policy directly or through a static strategy stage.
 
 ```rust
 use strustegy::prelude::*;
@@ -276,8 +277,16 @@ let name: Validated<String, ToolNamePolicy> =
 
 assert_eq!(name.get(), "sync_status");
 
+let canonicalize = strategy_fn(|value: &str| value.trim().to_ascii_lowercase());
+let pipeline = canonicalize.then(ValidateWith::<ToolNamePolicy>::new());
+let via_strategy = pipeline.apply("  SYNC_STATUS  ")?;
+
+assert_eq!(via_strategy.get(), "sync_status");
+
 # Ok::<(), ValidationErrors>(())
 ```
+
+`ValidateWith<P>` uses the same accumulated `validate_all` semantics. It is only a strategy adapter for policy validation; it does not add authority or change what `Validated<T, P>` means.
 
 `Validated<T, Policy>` means that the value passed that policy when the wrapper was created.
 

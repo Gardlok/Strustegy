@@ -3,11 +3,12 @@
 //! Successful validation creates a receipt for the value as it existed when the
 //! rules ran. It is not authorization and does not freeze interior-mutable state.
 
-use core::fmt;
+use core::{fmt, marker::PhantomData};
 use std::error::Error;
 
 use crate::hlist::{HCons, HList, HNil};
 use crate::proof::Validated;
+use crate::strategy::Strategy;
 
 pub mod rules;
 
@@ -176,5 +177,54 @@ where
         Ok(Validated::new(value))
     } else {
         Err(ValidationErrors::new(errors))
+    }
+}
+
+/// A zero-state [`Strategy`] adapter for accumulated validation with policy `P`.
+///
+/// `ValidateWith<P>` delegates to [`validate_all`], preserving its rule ordering,
+/// accumulated diagnostics, redaction behavior, and [`Validated`] receipt
+/// semantics. It does not construct or require a value of `P`.
+pub struct ValidateWith<P> {
+    marker: PhantomData<fn() -> P>,
+}
+
+impl<P> ValidateWith<P> {
+    /// Construct a validation strategy for policy `P`.
+    pub const fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<P> Copy for ValidateWith<P> {}
+
+impl<P> Clone for ValidateWith<P> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<P> Default for ValidateWith<P> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<P> fmt::Debug for ValidateWith<P> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ValidateWith")
+    }
+}
+
+impl<T, P> Strategy<T> for ValidateWith<P>
+where
+    P: Policy<T>,
+{
+    type Output = Result<Validated<T, P>, ValidationErrors>;
+
+    fn apply(&self, input: T) -> Self::Output {
+        validate_all::<P, T>(input)
     }
 }

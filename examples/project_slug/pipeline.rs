@@ -1,9 +1,9 @@
 //! Static proof, canonicalization, and validation stages.
 
 use strustegy::{
-    ByteLen, MaxBytes, NonEmpty, Policy, ProofPolicy, Refine, Rule, Strategy,
-    TrimmedAsciiIdentifier, Utf8, Validated, ValidationError, hlist, hlist_pat, hlist_ty, prove,
-    strategy_fn, validate_all,
+    ByteLen, MaxBytes, NonEmpty, Policy, ProofPolicy, Refine, Rule, Strategy, StrategyExt,
+    TrimmedAsciiIdentifier, Utf8, ValidateWith, Validated, ValidationError, hlist, hlist_pat,
+    hlist_ty, prove, strategy_fn,
 };
 
 use super::types::{ProjectSlugPolicy, RegistrationError};
@@ -100,10 +100,10 @@ pub fn prepare_slug(
 
     let hlist_pat![trimmed, _segments] = prove::<SlugShapeProof, _>(utf8)?.into_evidence();
 
-    let canonicalize = strategy_fn(|value: &str| value.to_ascii_lowercase().replace('_', "-"));
-    let canonical = canonicalize.apply(trimmed);
+    let pipeline = strategy_fn(|value: &str| value.to_ascii_lowercase().replace('_', "-"))
+        .then(ValidateWith::<ProjectSlugPolicy>::new());
 
-    Ok(validate_all::<ProjectSlugPolicy, _>(canonical)?)
+    Ok(pipeline.apply(trimmed)?)
 }
 
 #[cfg(test)]
@@ -113,7 +113,7 @@ mod tests {
     fn canonical_policy_accepts_exact_canonical_form() {
         for value in ["rose", "rose-2", "strustegy-demo"] {
             assert!(
-                super::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_ok(),
+                strustegy::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_ok(),
                 "expected {value:?} to satisfy the canonical policy"
             );
         }
@@ -132,13 +132,14 @@ mod tests {
             "rosé",
         ] {
             assert!(
-                super::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_err(),
+                strustegy::validate_all::<super::ProjectSlugPolicy, _>(String::from(value))
+                    .is_err(),
                 "expected {value:?} to violate the canonical policy"
             );
         }
 
         assert!(
-            super::validate_all::<super::ProjectSlugPolicy, _>("a".repeat(33)).is_err(),
+            strustegy::validate_all::<super::ProjectSlugPolicy, _>("a".repeat(33)).is_err(),
             "expected an oversized slug to violate the canonical policy"
         );
     }

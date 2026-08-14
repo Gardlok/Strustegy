@@ -40,6 +40,63 @@ fn valid_input_produces_a_policy_typed_proof() {
 }
 
 #[test]
+fn validate_with_produces_an_owned_policy_typed_proof_without_a_policy_value() {
+    fn assert_copy<T: Copy>() {}
+    fn assert_clone<T: Clone>() {}
+    fn assert_default<T: Default>() {}
+
+    assert_copy::<ValidateWith<ToolNamePolicy>>();
+    assert_clone::<ValidateWith<ToolNamePolicy>>();
+    assert_default::<ValidateWith<ToolNamePolicy>>();
+
+    let strategy = ValidateWith::<ToolNamePolicy>::new();
+    assert_eq!(format!("{strategy:?}"), "ValidateWith");
+
+    let validated: Validated<String, ToolNamePolicy> =
+        strategy.apply(String::from("sync_status")).unwrap();
+
+    assert_eq!(validated.get(), "sync_status");
+    assert_eq!(validated.into_inner(), "sync_status");
+}
+
+#[test]
+fn validate_with_preserves_validate_all_error_order_metadata_and_redaction() {
+    let rejected = "this name is far too long!";
+    let via_strategy = ValidateWith::<ToolNamePolicy>::new()
+        .apply(String::from(rejected))
+        .unwrap_err();
+    let direct = validate_all::<ToolNamePolicy, _>(String::from(rejected)).unwrap_err();
+
+    assert_eq!(via_strategy, direct);
+    assert_eq!(via_strategy.len(), 2);
+    assert_eq!(via_strategy.as_slice()[0].rule(), "max_bytes");
+    assert_eq!(via_strategy.as_slice()[0].code(), "too_long");
+    assert_eq!(via_strategy.as_slice()[1].rule(), "ascii_identifier");
+    assert_eq!(via_strategy.as_slice()[1].code(), "invalid_character");
+    assert!(!via_strategy.to_string().contains(rejected));
+    assert!(!format!("{via_strategy:?}").contains(rejected));
+}
+
+#[test]
+fn validate_with_composes_after_infallible_canonicalization() {
+    fn canonicalize(value: &str) -> String {
+        value.trim().to_ascii_lowercase()
+    }
+
+    let pipeline = strategy_fn(canonicalize).then(ValidateWith::<ToolNamePolicy>::new());
+
+    let validated = pipeline
+        .apply("  SYNC_STATUS  ")
+        .expect("canonicalized tool name should validate");
+    assert_eq!(validated.get(), "sync_status");
+
+    let rejected = "  THIS NAME IS FAR TOO LONG!  ";
+    let via_pipeline = pipeline.apply(rejected).unwrap_err();
+    let direct = validate_all::<ToolNamePolicy, _>(canonicalize(rejected)).unwrap_err();
+    assert_eq!(via_pipeline, direct);
+}
+
+#[test]
 fn fail_fast_reports_the_first_policy_rule() {
     let error = validate_first::<ToolNamePolicy, _>(String::new()).unwrap_err();
 

@@ -137,10 +137,16 @@ impl Policy<String> for CanonicalNamePolicy {
 fn prepare_name(
     raw: &str,
 ) -> Result<Validated<String, CanonicalNamePolicy>, ValidationErrors> {
-    let canonical = raw.trim().to_ascii_lowercase().replace('_', "-");
-    validate_all::<CanonicalNamePolicy, _>(canonical)
+    let canonicalize =
+        strategy_fn(|value: &str| value.trim().to_ascii_lowercase().replace('_', "-"));
+
+    canonicalize
+        .then(ValidateWith::<CanonicalNamePolicy>::new())
+        .apply(raw)
 }
 ```
+
+`ValidateWith<P>` makes the canonicalization and accumulated policy validation stages compose through the ordinary static `Strategy` API while keeping the transformation explicit.
 
 The important ordering is that `CanonicalNamePolicy` inspects the representation the application intends to keep.
 
