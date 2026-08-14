@@ -50,5 +50,5 @@ pub mod prelude {
         Policy, Rule, ValidateRules, ValidateWith, ValidationError, ValidationErrors, validate_all,
         validate_first,
     };
-    pub use crate::{hlist, hlist_pat, hlist_ty};
+    pub use crate::{hlist, hlist_pat, hlist_ty, validation_policy};
 }
