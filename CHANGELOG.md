@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Reusable `MaxUnicodeScalars<MAX>` and `InclusiveU64<MIN, MAX>` validation rules with generic redaction-safe diagnostics.
+- Borrowed `ValidationErrors` navigation through `first()` and `iter()`.
 
 ## [0.1.0] - 2026-08-14
 
