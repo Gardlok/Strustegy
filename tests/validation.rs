@@ -45,7 +45,7 @@ impl Rule<String> for StartsWithS {
     }
 }
 
-pub enum MacroPolicy {}
+enum MacroPolicy {}
 
 validation_policy! {
     MacroPolicy: String => [
