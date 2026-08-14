@@ -16,7 +16,7 @@ pub mod rules;
 ///
 /// The caller owns the policy marker and writes each rule type once. The generated
 /// implementation uses the existing static HList machinery and constructs each
-/// rule with [`Default::default`]. Policies with explicitly configured or stateful
+/// rule with `Default::default()`. Policies with explicitly configured or stateful
 /// rules should continue to implement [`Policy`] manually.
 #[macro_export]
 macro_rules! validation_policy {
