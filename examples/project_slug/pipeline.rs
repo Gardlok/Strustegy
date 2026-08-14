@@ -132,7 +132,8 @@ mod tests {
             "rosé",
         ] {
             assert!(
-                strustegy::validate_all::<super::ProjectSlugPolicy, _>(String::from(value)).is_err(),
+                strustegy::validate_all::<super::ProjectSlugPolicy, _>(String::from(value))
+                    .is_err(),
                 "expected {value:?} to violate the canonical policy"
             );
         }
