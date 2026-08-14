@@ -256,7 +256,7 @@ Application authority and lifecycle logic stay in the application.
 
 ## Application-owned diagnostic projection
 
-Strustegy's built-in validation diagnostics are deliberately redaction-safe. `ValidationError` exposes stable static metadata through `rule()` and `code()`, while `ValidationErrors` exposes the collected errors through `as_slice()` and `into_vec()`.
+Strustegy's built-in validation diagnostics are deliberately redaction-safe. `ValidationError` exposes stable static metadata through `rule()` and `code()`, while `ValidationErrors` provides `first()` and `iter()` for borrowed navigation, `as_slice()` for slice access, and `into_vec()` for owned extraction.
 
 Security-sensitive applications can project that metadata into their own machine-facing taxonomy without echoing rejected input:
 
@@ -283,12 +283,7 @@ fn project_error(error: ValidationError) -> AppValidationCode {
 }
 
 fn project_borrowed(errors: &ValidationErrors) -> Vec<AppValidationCode> {
-    errors
-        .as_slice()
-        .iter()
-        .copied()
-        .map(project_error)
-        .collect()
+    errors.iter().copied().map(project_error).collect()
 }
 
 fn project_owned(errors: ValidationErrors) -> Vec<AppValidationCode> {
