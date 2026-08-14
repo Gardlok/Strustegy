@@ -177,12 +177,15 @@ fn numeric_policies_enforce_documented_bounds() {
         raw.timeout_ms = timeout_ms;
         let error = build_manifest(&raw).expect_err("timeout should fail");
         assert_eq!(error.phase(), BuildPhase::TimeoutValidation);
+        assert_eq!(error.validation_error().rule(), "inclusive_u64");
+        assert_eq!(error.validation_error().code(), "out_of_range");
     }
 
     let mut raw = valid_raw();
     raw.retry_limit = 6;
     let error = build_manifest(&raw).expect_err("retry limit should fail");
     assert_eq!(error.phase(), BuildPhase::RetryLimitValidation);
+    assert_eq!(error.validation_error().rule(), "retry_limit_range");
 
     let mut raw = valid_raw();
     raw.retry_limit = 0;

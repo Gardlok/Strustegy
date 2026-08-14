@@ -4,7 +4,7 @@ use core::fmt;
 use std::error::Error;
 
 use strustegy::{
-    ByteLen, MaxBytes, NonEmpty, Policy, ProjectEvidence, ProofPolicy, Prove, Rule,
+    ByteLen, InclusiveU64, MaxBytes, NonEmpty, Policy, ProjectEvidence, ProofPolicy, Prove, Rule,
     TrimmedAsciiIdentifier, ValidationError, hlist, hlist_pat, hlist_ty,
 };
 
@@ -172,26 +172,13 @@ impl Policy<String> for ChecksumSyntaxPolicy {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct TimeoutRange;
-
-impl Rule<u64> for TimeoutRange {
-    fn check(&self, value: &u64) -> Result<(), ValidationError> {
-        if (1..=60_000).contains(value) {
-            Ok(())
-        } else {
-            Err(ValidationError::new("timeout_range", "out_of_range"))
-        }
-    }
-}
-
 pub enum TimeoutPolicy {}
 
 impl Policy<u64> for TimeoutPolicy {
-    type Rules = hlist_ty![TimeoutRange];
+    type Rules = hlist_ty![InclusiveU64<1, 60_000>];
 
     fn rules() -> Self::Rules {
-        hlist![TimeoutRange]
+        hlist![InclusiveU64::<1, 60_000>]
     }
 }
 
