@@ -24,7 +24,7 @@ fn main() -> Result<(), RegistrationError> {
     let ensure_available = async_strategy_fn(async |slug: Validated<String, ProjectSlugPolicy>| {
         let available = registry.ensure_available(slug).await?;
 
-        println!("availability proof: slug is not registered");
+        println!("availability check passed: slug is not registered");
 
         Ok::<AvailableProjectSlug, RegistrationError>(available)
     });
