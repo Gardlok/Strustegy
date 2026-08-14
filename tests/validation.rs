@@ -72,7 +72,10 @@ fn validation_errors_first_returns_first_failure_without_consuming_collection() 
 
     assert_eq!(errors.len(), 2);
     assert_eq!(errors.as_slice()[1].rule(), "ascii_identifier");
-    assert_eq!(errors.iter().next().map(ValidationError::rule), Some("max_bytes"));
+    assert_eq!(
+        errors.iter().next().map(ValidationError::rule),
+        Some("max_bytes")
+    );
 }
 
 #[test]
