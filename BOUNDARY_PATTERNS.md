@@ -283,7 +283,11 @@ fn project_error(error: ValidationError) -> AppValidationCode {
 }
 
 fn project_borrowed(errors: &ValidationErrors) -> Vec<AppValidationCode> {
-    errors.iter().copied().map(project_error).collect()
+    errors
+        .iter()
+        .copied()
+        .map(project_error)
+        .collect()
 }
 
 fn project_owned(errors: ValidationErrors) -> Vec<AppValidationCode> {
