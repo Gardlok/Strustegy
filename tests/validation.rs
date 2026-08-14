@@ -72,10 +72,7 @@ fn validate_with_preserves_validate_all_error_order_metadata_and_redaction() {
     assert_eq!(via_strategy.as_slice()[0].rule(), "max_bytes");
     assert_eq!(via_strategy.as_slice()[0].code(), "too_long");
     assert_eq!(via_strategy.as_slice()[1].rule(), "ascii_identifier");
-    assert_eq!(
-        via_strategy.as_slice()[1].code(),
-        "invalid_character"
-    );
+    assert_eq!(via_strategy.as_slice()[1].code(), "invalid_character");
     assert!(!via_strategy.to_string().contains(rejected));
     assert!(!format!("{via_strategy:?}").contains(rejected));
 }
