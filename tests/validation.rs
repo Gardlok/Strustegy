@@ -209,8 +209,8 @@ fn manual_stateful_non_default_policy_remains_supported() {
     assert_eq!(accepted.get(), "rose-ready");
 
     let rejected = "other-ready";
-    let errors =
-        validate_all::<StatefulPrefixPolicy, _>(String::from(rejected)).expect_err("prefix must fail");
+    let errors = validate_all::<StatefulPrefixPolicy, _>(String::from(rejected))
+        .expect_err("prefix must fail");
     assert_eq!(errors.len(), 1);
     assert_eq!(errors.as_slice()[0].rule(), "prefix");
     assert_eq!(errors.as_slice()[0].code(), "missing_prefix");
