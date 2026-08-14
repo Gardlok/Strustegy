@@ -300,7 +300,7 @@ For canonical domain values, normalize or canonicalize first and then validate t
 
 Across wire, IPC, or persistence boundaries, serialize ordinary stable data and revalidate it when reconstructing a trusted application type. Strustegy does not serialize `Validated` or `Witnessed`, and serialized policy metadata is not transferable proof authority.
 
-Built-in diagnostics are redaction-safe. Applications can map `ValidationError::rule()` / `code()` and `ValidationErrors::as_slice()` / `into_vec()` into application-owned stable machine codes without returning rejected input.
+Built-in diagnostics are redaction-safe. Applications can map `ValidationError::rule()` / `code()` using `ValidationErrors::first()` / `iter()` for borrowed navigation, `as_slice()` for slice access, and `into_vec()` for owned extraction without returning rejected input.
 
 The deeper release and boundary documents are:
 

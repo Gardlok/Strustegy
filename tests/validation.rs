@@ -58,6 +58,60 @@ fn accumulating_validation_reports_each_failed_rule_once() {
 }
 
 #[test]
+fn validation_errors_first_returns_first_failure_without_consuming_collection() {
+    let rejected = "this name is far too long!";
+    let errors = validate_all::<ToolNamePolicy, _>(String::from(rejected)).unwrap_err();
+
+    {
+        let first = errors.first().expect("multi-error policy must fail");
+        assert_eq!(first.rule(), "max_bytes");
+        assert_eq!(first.code(), "too_long");
+        assert_eq!(Some(first), errors.as_slice().first());
+        assert!(!format!("{first:?}").contains(rejected));
+    }
+
+    assert_eq!(errors.len(), 2);
+    assert_eq!(errors.as_slice()[1].rule(), "ascii_identifier");
+    assert_eq!(
+        errors.iter().next().map(ValidationError::rule),
+        Some("max_bytes")
+    );
+}
+
+#[test]
+fn validation_errors_iter_projects_metadata_in_rule_order() {
+    let errors =
+        validate_all::<ToolNamePolicy, _>(String::from("this name is far too long!")).unwrap_err();
+
+    let projected: Vec<_> = errors
+        .iter()
+        .map(|error| (error.rule(), error.code()))
+        .collect();
+    assert_eq!(
+        projected,
+        vec![
+            ("max_bytes", "too_long"),
+            ("ascii_identifier", "invalid_character"),
+        ]
+    );
+
+    let slice_projection: Vec<_> = errors
+        .as_slice()
+        .iter()
+        .map(|error| (error.rule(), error.code()))
+        .collect();
+    assert_eq!(projected, slice_projection);
+    assert_eq!(errors.len(), 2);
+
+    let owned = errors.into_vec();
+    let owned_projection: Vec<_> = owned
+        .iter()
+        .map(|error| (error.rule(), error.code()))
+        .collect();
+    assert_eq!(projected, owned_projection);
+}
+
+#[test]
 fn validation_errors_do_not_echo_rejected_input() {
     let rejected = "secret value with spaces";
     let errors = validate_all::<ToolNamePolicy, _>(String::from(rejected)).unwrap_err();

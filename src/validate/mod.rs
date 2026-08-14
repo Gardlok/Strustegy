@@ -55,6 +55,19 @@ impl ValidationErrors {
         Self { errors }
     }
 
+    /// Return the first collected validation error, if any.
+    ///
+    /// Errors retain deterministic policy/rule execution order. The first error
+    /// is not inherently more authoritative or severe than later failures.
+    pub fn first(&self) -> Option<&ValidationError> {
+        self.errors.first()
+    }
+
+    /// Iterate over collected validation errors in policy/rule execution order.
+    pub fn iter(&self) -> core::slice::Iter<'_, ValidationError> {
+        self.errors.iter()
+    }
+
     pub fn as_slice(&self) -> &[ValidationError] {
         &self.errors
     }
