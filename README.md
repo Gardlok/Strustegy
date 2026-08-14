@@ -250,6 +250,8 @@ impl Policy<String> for ToolNamePolicy {
 }
 ```
 
+Two length limits are intentionally distinct: `MaxBytes<MAX>` bounds UTF-8 bytes, while `MaxUnicodeScalars<MAX>` bounds Rust `char` (Unicode scalar value) count rather than grapheme clusters or user-perceived characters. `InclusiveU64<MIN, MAX>` validates a closed inclusive `u64` interval.
+
 A value can then be checked against the policy.
 
 ```rust

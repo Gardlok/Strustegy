@@ -36,6 +36,40 @@ where
     }
 }
 
+/// Bound a string-like value by its Unicode scalar-value (`char`) count.
+///
+/// This is distinct from UTF-8 byte length and from grapheme-cluster or
+/// user-perceived-character counts.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MaxUnicodeScalars<const MAX: usize>;
+
+impl<T, const MAX: usize> Rule<T> for MaxUnicodeScalars<MAX>
+where
+    T: AsRef<str>,
+{
+    fn check(&self, value: &T) -> Result<(), ValidationError> {
+        if value.as_ref().chars().count() > MAX {
+            Err(ValidationError::new("max_unicode_scalars", "too_long"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Require a `u64` value to lie within the closed interval `MIN..=MAX`.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InclusiveU64<const MIN: u64, const MAX: u64>;
+
+impl<const MIN: u64, const MAX: u64> Rule<u64> for InclusiveU64<MIN, MAX> {
+    fn check(&self, value: &u64) -> Result<(), ValidationError> {
+        if MIN <= *value && *value <= MAX {
+            Ok(())
+        } else {
+            Err(ValidationError::new("inclusive_u64", "out_of_range"))
+        }
+    }
+}
+
 /// Permit only ASCII alphanumeric characters, `_`, and `-`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AsciiIdentifier;

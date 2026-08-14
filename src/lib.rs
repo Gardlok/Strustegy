@@ -22,7 +22,7 @@ pub use proof::{Validated, Witnessed};
 pub use refine::refiners::{ByteLen, Trimmed, TrimmedAsciiIdentifier, TrimmedNonEmpty, Utf8};
 pub use refine::{ProjectEvidence, ProofPolicy, Prove, Refine, prove, prove_projected};
 pub use strategy::{AndThen, Compose, Identity, Strategy, StrategyExt};
-pub use validate::rules::{AsciiIdentifier, MaxBytes, NonEmpty};
+pub use validate::rules::{AsciiIdentifier, InclusiveU64, MaxBytes, MaxUnicodeScalars, NonEmpty};
 pub use validate::{
     Policy, Rule, ValidateRules, ValidationError, ValidationErrors, validate_all, validate_first,
 };
@@ -42,7 +42,9 @@ pub mod prelude {
     };
     pub use crate::refine::{ProjectEvidence, ProofPolicy, Prove, Refine, prove, prove_projected};
     pub use crate::strategy::{AndThen, Compose, Identity, Strategy, StrategyExt};
-    pub use crate::validate::rules::{AsciiIdentifier, MaxBytes, NonEmpty};
+    pub use crate::validate::rules::{
+        AsciiIdentifier, InclusiveU64, MaxBytes, MaxUnicodeScalars, NonEmpty,
+    };
     pub use crate::validate::{
         Policy, Rule, ValidateRules, ValidationError, ValidationErrors, validate_all,
         validate_first,
