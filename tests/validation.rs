@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use strustegy::prelude::*;
 
 pub enum ToolNamePolicy {}
@@ -27,6 +29,66 @@ impl Policy<u64> for RefreshPolicy {
 
     fn rules() -> Self::Rules {
         hlist![InclusiveU64::<1, 60_000>]
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct StartsWithS;
+
+impl Rule<String> for StartsWithS {
+    fn check(&self, value: &String) -> Result<(), ValidationError> {
+        if value.starts_with('s') {
+            Ok(())
+        } else {
+            Err(ValidationError::new("starts_with_s", "missing_prefix"))
+        }
+    }
+}
+
+enum MacroPolicy {}
+
+validation_policy! {
+    MacroPolicy: String => [
+        NonEmpty,
+        MaxBytes<8>,
+        AsciiIdentifier,
+        StartsWithS,
+    ]
+}
+
+enum SameRulesPolicyA {}
+enum SameRulesPolicyB {}
+
+validation_policy! {
+    SameRulesPolicyA: String => [NonEmpty]
+}
+
+validation_policy! {
+    SameRulesPolicyB: String => [NonEmpty]
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PrefixRule {
+    prefix: &'static str,
+}
+
+impl Rule<String> for PrefixRule {
+    fn check(&self, value: &String) -> Result<(), ValidationError> {
+        if value.starts_with(self.prefix) {
+            Ok(())
+        } else {
+            Err(ValidationError::new("prefix", "missing_prefix"))
+        }
+    }
+}
+
+enum StatefulPrefixPolicy {}
+
+impl Policy<String> for StatefulPrefixPolicy {
+    type Rules = hlist_ty![PrefixRule];
+
+    fn rules() -> Self::Rules {
+        hlist![PrefixRule { prefix: "rose-" }]
     }
 }
 
@@ -94,6 +156,65 @@ fn validate_with_composes_after_infallible_canonicalization() {
     let via_pipeline = pipeline.apply(rejected).unwrap_err();
     let direct = validate_all::<ToolNamePolicy, _>(canonicalize(rejected)).unwrap_err();
     assert_eq!(via_pipeline, direct);
+}
+
+#[test]
+fn validation_policy_macro_supports_builtin_and_custom_default_rules() {
+    let validated: Validated<String, MacroPolicy> =
+        validate_all::<MacroPolicy, _>(String::from("sync_id")).unwrap();
+    assert_eq!(validated.get(), "sync_id");
+
+    let via_strategy: Validated<String, MacroPolicy> = ValidateWith::<MacroPolicy>::new()
+        .apply(String::from("status"))
+        .unwrap();
+    assert_eq!(via_strategy.get(), "status");
+}
+
+#[test]
+fn validation_policy_macro_preserves_rule_order_metadata_and_redaction() {
+    let rejected = "bad value!";
+    let errors = validate_all::<MacroPolicy, _>(String::from(rejected)).unwrap_err();
+
+    let projected: Vec<_> = errors
+        .iter()
+        .map(|error| (error.rule(), error.code()))
+        .collect();
+    assert_eq!(
+        projected,
+        vec![
+            ("max_bytes", "too_long"),
+            ("ascii_identifier", "invalid_character"),
+            ("starts_with_s", "missing_prefix"),
+        ]
+    );
+    assert!(!errors.to_string().contains(rejected));
+    assert!(!format!("{errors:?}").contains(rejected));
+}
+
+#[test]
+fn validation_policy_macro_preserves_nominal_marker_identity() {
+    let first = validate_all::<SameRulesPolicyA, _>(String::from("same")).unwrap();
+    let second = validate_all::<SameRulesPolicyB, _>(String::from("same")).unwrap();
+
+    assert_eq!(first.get(), second.get());
+    assert_ne!(
+        TypeId::of::<Validated<String, SameRulesPolicyA>>(),
+        TypeId::of::<Validated<String, SameRulesPolicyB>>()
+    );
+}
+
+#[test]
+fn manual_stateful_non_default_policy_remains_supported() {
+    let accepted = validate_all::<StatefulPrefixPolicy, _>(String::from("rose-ready")).unwrap();
+    assert_eq!(accepted.get(), "rose-ready");
+
+    let rejected = "other-ready";
+    let errors = validate_all::<StatefulPrefixPolicy, _>(String::from(rejected))
+        .expect_err("prefix must fail");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors.as_slice()[0].rule(), "prefix");
+    assert_eq!(errors.as_slice()[0].code(), "missing_prefix");
+    assert!(!format!("{errors:?}").contains(rejected));
 }
 
 #[test]

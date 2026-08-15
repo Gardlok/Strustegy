@@ -251,6 +251,24 @@ impl Policy<String> for ToolNamePolicy {
 }
 ```
 
+For zero-state rules that implement `Default`, `validation_policy!` is an optional shorthand that implements the same `Policy` trait for an existing application-owned marker:
+
+```rust
+use strustegy::prelude::*;
+
+pub enum ToolNamePolicy {}
+
+validation_policy! {
+    ToolNamePolicy: String => [
+        NonEmpty,
+        MaxBytes<64>,
+        AsciiIdentifier,
+    ]
+}
+```
+
+Each declared rule is constructed with `Default`. Manual `Policy` implementations remain the right choice for rules that carry explicit configuration or state. The shorthand changes neither nominal policy identity nor the proof meaning of `Validated<T, P>`.
+
 Two length limits are intentionally distinct: `MaxBytes<MAX>` bounds UTF-8 bytes, while `MaxUnicodeScalars<MAX>` bounds Rust `char` (Unicode scalar value) count rather than grapheme clusters or user-perceived characters. `InclusiveU64<MIN, MAX>` validates a closed inclusive `u64` interval.
 
 A value can then be checked against the policy directly or through a static strategy stage.

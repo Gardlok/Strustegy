@@ -4,8 +4,8 @@ use core::fmt;
 use std::error::Error;
 
 use strustegy::{
-    ByteLen, InclusiveU64, MaxBytes, NonEmpty, Policy, ProjectEvidence, ProofPolicy, Prove, Rule,
-    TrimmedAsciiIdentifier, ValidationError, hlist, hlist_pat, hlist_ty,
+    ByteLen, InclusiveU64, MaxBytes, NonEmpty, ProjectEvidence, ProofPolicy, Prove, Rule,
+    TrimmedAsciiIdentifier, ValidationError, hlist, hlist_pat, hlist_ty, validation_policy,
 };
 
 use crate::domain::{EnvironmentInputEvidence, ProjectInputEvidence};
@@ -86,22 +86,14 @@ impl Rule<String> for CanonicalIdentifierSyntax {
 
 pub enum ProjectNamePolicy {}
 
-impl Policy<String> for ProjectNamePolicy {
-    type Rules = hlist_ty![NonEmpty, MaxBytes<48>, CanonicalIdentifierSyntax];
-
-    fn rules() -> Self::Rules {
-        hlist![NonEmpty, MaxBytes::<48>, CanonicalIdentifierSyntax]
-    }
+validation_policy! {
+    ProjectNamePolicy: String => [NonEmpty, MaxBytes<48>, CanonicalIdentifierSyntax]
 }
 
 pub enum EnvironmentNamePolicy {}
 
-impl Policy<String> for EnvironmentNamePolicy {
-    type Rules = hlist_ty![NonEmpty, MaxBytes<32>, CanonicalIdentifierSyntax];
-
-    fn rules() -> Self::Rules {
-        hlist![NonEmpty, MaxBytes::<32>, CanonicalIdentifierSyntax]
-    }
+validation_policy! {
+    EnvironmentNamePolicy: String => [NonEmpty, MaxBytes<32>, CanonicalIdentifierSyntax]
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -133,12 +125,8 @@ impl Rule<String> for ArtifactNameSyntax {
 
 pub enum ArtifactNamePolicy {}
 
-impl Policy<String> for ArtifactNamePolicy {
-    type Rules = hlist_ty![NonEmpty, MaxBytes<96>, ArtifactNameSyntax];
-
-    fn rules() -> Self::Rules {
-        hlist![NonEmpty, MaxBytes::<96>, ArtifactNameSyntax]
-    }
+validation_policy! {
+    ArtifactNamePolicy: String => [NonEmpty, MaxBytes<96>, ArtifactNameSyntax]
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -164,22 +152,14 @@ impl Rule<String> for LowercaseSha256Syntax {
 
 pub enum ChecksumSyntaxPolicy {}
 
-impl Policy<String> for ChecksumSyntaxPolicy {
-    type Rules = hlist_ty![LowercaseSha256Syntax];
-
-    fn rules() -> Self::Rules {
-        hlist![LowercaseSha256Syntax]
-    }
+validation_policy! {
+    ChecksumSyntaxPolicy: String => [LowercaseSha256Syntax]
 }
 
 pub enum TimeoutPolicy {}
 
-impl Policy<u64> for TimeoutPolicy {
-    type Rules = hlist_ty![InclusiveU64<1, 60_000>];
-
-    fn rules() -> Self::Rules {
-        hlist![InclusiveU64::<1, 60_000>]
-    }
+validation_policy! {
+    TimeoutPolicy: u64 => [InclusiveU64<1, 60_000>]
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -197,12 +177,8 @@ impl Rule<u8> for RetryLimitRange {
 
 pub enum RetryLimitPolicy {}
 
-impl Policy<u8> for RetryLimitPolicy {
-    type Rules = hlist_ty![RetryLimitRange];
-
-    fn rules() -> Self::Rules {
-        hlist![RetryLimitRange]
-    }
+validation_policy! {
+    RetryLimitPolicy: u8 => [RetryLimitRange]
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

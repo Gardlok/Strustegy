@@ -12,6 +12,33 @@ use crate::strategy::Strategy;
 
 pub mod rules;
 
+/// Implement [`Policy`] for an existing marker using `Default`-constructible rules.
+///
+/// The caller owns the policy marker and writes each rule type once. The generated
+/// implementation uses the existing static HList machinery and constructs each
+/// rule with `Default::default()`. Policies with explicitly configured or stateful
+/// rules should continue to implement [`Policy`] manually.
+#[macro_export]
+macro_rules! validation_policy {
+    (
+        $policy:ty : $input:ty => [
+            $($rule:ty),* $(,)?
+        ]
+    ) => {
+        impl $crate::validate::Policy<$input> for $policy {
+            type Rules = $crate::hlist_ty![$($rule),*];
+
+            fn rules() -> Self::Rules {
+                $crate::hlist![
+                    $(
+                        <$rule as ::core::default::Default>::default()
+                    ),*
+                ]
+            }
+        }
+    };
+}
+
 /// A redaction-safe validation failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValidationError {
